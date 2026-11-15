@@ -48,7 +48,7 @@
 ;;
 ;; (start code)
 ;; Required memory:
-;;    44 bytes (41 bytes core routine + 3 bytes binding wrapper)
+;;    43 bytes (40 bytes core routine + 3 bytes binding wrapper)
 ;;
 ;; Time Measures (including cpct_getScreenPtr_asm 30us) (add +10 us for c binding wrapper):
 ;;    Case                               | microSecs (us) | CPU Cycles
@@ -83,12 +83,13 @@ smc_jpoverrlca=.+1                  ;; (SMC)
     rlca                            ;; [1] Rotate octet left to align the selected pixel
 computeColor:
     and     #0x88                   ;; [2] and 0b10001000 to mask subpixel 0
+                                    ;; now A = b0  0  0  0 b1  0  0  0  - CF = 0 
+                                    ;; aim A =  0  0  0  0  0  0 b1 b0
+    ld      l,a                     ;; [1] L = b0  0  0  0 b1  0  0  0  - CF = 0
+    rlc     l                       ;; [2] L =  0  0  0 b1  0  0  0 b0  - CF = b0
+    rrca                            ;; [1] A =  0 b0  0  0  0 b1  0  0  - CF = 0
+    rrca                            ;; [1] A =  0  0 b0  0  0  0 b1  0  - CF = 0
+    or      l                       ;; [1] A =  0  0 b0 b1  0  0 b1 b0  - CF = 0
+    and     #0x03                   ;; [2] A =  0  0  0  0  0  0 b1 b0  - CF = 0
 
-    ld      l,#0                    ;; [2] Future color
-    rla                             ;; [1] Move octet bit 7 to carry and bit 3 to bit 4
-    rl      l                       ;; [2] Transfer bit 7 to color bit 0 (L starts at 0)
-    rrca                            ;; [1] Move bit 3 of the octet to bit 1 of the color
-    rrca                            ;; [1]
-    rrca                            ;; [1]
-    or      l                       ;; [1] Combine both color bits
     ret                             ;; [3] returns

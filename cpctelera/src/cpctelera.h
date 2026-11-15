@@ -37,5 +37,6 @@
 #include <files/files.h>
 #include <cpcplus_asic/cpcplus.h>
 #include <geometry/geometry.h>
+#include <geometry/bayer.h>
 
 #endif

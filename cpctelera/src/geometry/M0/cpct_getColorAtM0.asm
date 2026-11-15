@@ -33,7 +33,7 @@
 ;;   (2B BC)    y    - C = Y coordinate (0-199 no checks)
 ;;
 ;; Return value:
-;;   (1B L) outColor - Pen color of pixel (0..15)
+;;   (1B A) outColor - Pen color of pixel (0..15)
 ;;
 ;; Assembly call:
 ;;    > call cpct_getColorAtM0_asm
@@ -46,13 +46,13 @@
 ;;
 ;; (start code)
 ;; Code size
-;;   33 bytes + 3 bytes of c cbinding
+;;   32 bytes + 3 bytes of c cbinding
 ;;
 ;; Total time (+10 c binding):
 ;;    Case                               | NOP
 ;;   -----------------------------------------------
-;;    Subpixel 0 (taken JR)              | 73
-;;    Subpixel 1 (JR + RLCA)             | 73
+;;    Subpixel 0 (taken JR)              | 72
+;;    Subpixel 1 (JR + RLCA)             | 72
 ;; (end code)
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -75,18 +75,17 @@
 computeColor:
    and     #0xAA                    ;; [2] A = b7 0  b5 0  b3 0  b1 0  CF = 0
    ;; Need to compute A = 0  0  0  0  b1 b5 b3 b7
-   ld      l,#0                     ;; [2] L = 0  0  0  0  0  0  0  0  CF = 0    Need an empty register
-   rla                              ;; [1] A = 0  b5 0  b3 0  b1 0  0  CF = b7   Rotate with carry
-   rl      l                        ;; [2] L = 0  0  0  0  0  0  0  b7 CF = 0    Rotate with carry   L = 0 0 0 b7 nibble
-   rla                              ;; [1] A = b5 0  b3 0  b1 0  0  0  CF = 0    Rotate with carry
-   ld      c,a                      ;; [1] C = b5 0  b3 0  b1 0  0  0  CF = 0    Store b1 in C       C = b1 0 0 0 nibble
-   rla                              ;; [1] A = 0  b3 0  b1 0  0  0  0  CF = b5   Rotate with carry   temporisation of b5 for b3
-   rla                              ;; [1] A = b3 0  b1 0  0  0  0  b5 CF = 0    Rotate with carry   insert b5 before b3 rotate
-   rlca                             ;; [1] A = 0  b1 0  0  0  0  b5 b3 CF = b3   Rotate copy carry   rotate b3 after b5
-   rlca                             ;; [1] A = b1 0  0  0  0  b5 b3 0  CF = 0    Rotate copy carry   A = 0  b5 b3 0  nibble
-   or      l                        ;; [1] A = b1 0  0  0  0  b5 b3 b7 CF = 0    Add b7 to A         A = 0  b5 b3 b7 nibble
-   or      c                        ;; [1] A = 15 0  b3 0  b1 b5 b3 b7 CF = 0    Add b1 to A         A = b1 b5 b3 b7 nibble
-   and     #0x0F                    ;; [2] A = 0  0  0  0  b1 b5 b3 b7 CF = 0    Clean other bits    A = b1 b5 b3 b7 = Pen color
-   ld      l,a                      ;; [1] L = Pen color
+   ld      l,#0                     ;; [2] L = 0  0  0  0  0  0  0  0  - CF = 0    Need an empty register
+   rla                              ;; [1] A = 0  b5 0  b3 0  b1 0  0  - CF = b7   Rotate with carry
+   rl      l                        ;; [2] L = 0  0  0  0  0  0  0  b7 - CF = 0    Rotate with carry   L = 0 0 0 b7 nibble
+   rla                              ;; [1] A = b5 0  b3 0  b1 0  0  0  - CF = 0    Rotate with carry
+   ld      c,a                      ;; [1] C = b5 0  b3 0  b1 0  0  0  - CF = 0    Store b1 in C       C = b1 0 0 0 nibble
+   rla                              ;; [1] A = 0  b3 0  b1 0  0  0  0  - CF = b5   Rotate with carry   temporisation of b5 for b3
+   rla                              ;; [1] A = b3 0  b1 0  0  0  0  b5 - CF = 0    Rotate with carry   insert b5 before b3 rotate
+   rlca                             ;; [1] A = 0  b1 0  0  0  0  b5 b3 - CF = b3   Rotate copy carry   rotate b3 after b5
+   rlca                             ;; [1] A = b1 0  0  0  0  b5 b3 0  - CF = 0    Rotate copy carry   A = 0  b5 b3 0  nibble
+   or      l                        ;; [1] A = b1 0  0  0  0  b5 b3 b7 - CF = 0    Add b7 to A         A = 0  b5 b3 b7 nibble
+   or      c                        ;; [1] A = 15 0  b3 0  b1 b5 b3 b7 - CF = 0    Add b1 to A         A = b1 b5 b3 b7 nibble
+   and     #0x0F                    ;; [2] A = 0  0  0  0  b1 b5 b3 b7 - CF = 0    Clean other bits    A = b1 b5 b3 b7 = Pen color
 
    ret                              ;; [3] returns
