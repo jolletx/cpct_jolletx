@@ -41,12 +41,13 @@
 ;; Details:
 ;;    Draw a box using a Bayer dithering set by <cpct_setBayerMatrixM1>.
 ;;    cpct_setBayerMatrixM1 must be called before to set requested vmem start / intensity / pens
+;;    Uses self modifying code: not suitable for ROMs
 ;; 
 ;; Destroyed Register values:
 ;;    AF, BC, DE, HL
 ;;
 ;; Required memory:
-;;    356 bytes (348 bytes routine + 5 bytes data + 3 bytes C binding wrapper)
+;;    351 bytes (348 bytes routine + 3 bytes C binding wrapper)
 ;;    (+36 bytes for cpct_subPixelHorizontalMask_M1)
 ;;    (+91 bytes for bayer internal data)
 ;;
@@ -78,18 +79,19 @@ bb_noYExx:
 
     ;; So now HL < DE C < B
     ld      a,c                                 ;; [1] a = y0
-    ld      (bayer_y0),a                        ;; [4] Store current Y coordinate
+    ld      (bayer_y0),a                        ;; [4] (SMC) Store current Y coordinate
     ;; Compute right octet and subpixel
     ld      a,e                                 ;; [1] a = LSB X1
     and     #0x03                               ;; [2] a = subpixel x1
-    ld      (bayer_rightSP),a                   ;; [4] Store right subpixel
+    ld      (bayer_rightSP),a                   ;; [4] (SMC) Store right subpixel
     sra     d                                   ;; [2] divide X1 by 4 - first msb
     rr      e                                   ;; [2] then lsb according to carry
     srl     e                                   ;; [2] e = X right offset on screen
     ;; Compute HL octet and subpixel
     ld      a,l                                 ;; [1] a = LSB X0
     and     #0x03                               ;; [2] a = subpixel x0
-    ld      (bayer_leftSP),a                    ;; [4] Store left subpixel
+    ld      (bayer_leftSP),a                    ;; [4] (SMC) Store left subpixel
+    ld      (bayer_leftSPForLast),a             ;; [4] (SMC) Store left subpixel for last subpixel if nbOctet = 0
     sra     h                                   ;; [2] divide X0 by 4 - first msb
     rr      l                                   ;; [2] then lsb according to carry
     srl     l                                   ;; [2] l = X offset on screen
@@ -97,7 +99,7 @@ bb_noYExx:
     ;; Compute and prepare internals
     ld      a,e                                 ;; [1] a = X Right offset
     sub     l                                   ;; [1] a = XRO - XLO = nbOctets
-    ld      (bayer_nbOctets),a                  ;; [4] Stores the octet difference between X1 and X0
+    ld      (bayer_nbOctets),a                  ;; [4] (SMC) Stores the octet difference between X1 and X0
     ld      a,b                                 ;; [1] a = Y1
     sub     c                                   ;; [1] a = Y1-Y0 = nbLines
     ld      (bayer_nbLines),a                   ;; [4] Stores number of line to draw
@@ -112,7 +114,8 @@ bb_noYExx:
 
 bb_lineLoop::
     ;; Get current line intensity octet
-    ld      a,(bayer_y0)                        ;; [4] A = Y0 at first
+bayer_y0=. + 1  
+    ld      a,#0                                ;; [4] (SMC) A = Y0
     and     #0x03                               ;; [2] A = subLine 
     ld      c,a                                 ;; [1] C = subline
     ld      b,#0                                ;; [2] B = 0
@@ -124,23 +127,25 @@ bb_lineLoop::
     ex      de,hl                               ;; [1] Retrieve hl = screenAdress
     ;; Prepare values for horizontal line algo
     ld      d,a                                 ;; [1] D = Intensity octet of subline
-    ld      a,(bayer_nbOctets)                  ;; [4] A = nbOctet
-    ld      e,a                                 ;; [1] E = nbOctet
+bayer_nbOctets=. + 1
+    ld      e,#1                                ;; [2] (SMC) E = nbOctet
 
     ;; Draw line from left to right
     push    hl                                  ;; [4] Preserve start of line adress
     ;; check if line is on same octet
+    ld      a,e                                 ;; [1] A = nbOctet
     or      a                                   ;; [1] nbOctet == 0 ?
     jp      z,#bb_lastOctet                     ;; [3] yes : we are on last octet
     ;; Check if left subpixel is 0, so we can use full repetition size
-    ld      a,(bayer_leftSP)                    ;; [4] A = left subpixel
+bayer_leftSP=. + 1    
+    ld      a,#0                                ;; [4] (SMC) A = left subpixel
     or      a                                   ;; [1] == 0 ?
     jr      z,#bb_setRepeat                     ;; [2/3] yes, can use full octet
     ;; Deal wih first octet from subpixel a to subpixel 3
     ld      c,#3                                ;; [2] c= Subpixel 3 (a = left subpixel)
     call    b_setScreenOctetFromSubpixels       ;; [5] set screen octet from subpixel a to 3
     xor     a                                   ;; [1] A = 0
-    ld      (bayer_leftSP),a                    ;; [4] Reset left subpixel to 0
+    ld      (bayer_leftSPForLast),a             ;; [4] (SMC) Set last octet left subpixel to 0
     dec     e                                   ;; [1] Decrease nbOctet (can be 0 now)
 
 bb_setRepeat::
@@ -151,33 +156,35 @@ bb_setRepeat::
     push    hl                                  ;; [4] preserve screen adress
     ld      hl,#bb_lastOctet                    ;; [3] Points to next instruction after jumpBlock
     sbc     hl,bc                               ;; [4] Decrease pointer to nb octet to set
-    ld      (b_jmpBlock),hl                     ;; [5] SMC : modify jump access
+    ld      (b_jmpBlock),hl                     ;; [5] (SMC) modify jump access
     pop     hl                                  ;; [3] retrieve screen adress
 
 b_jmpBlock=. + 1
-    jp      bb_lastOctet                        ;; [3] SMC Jumps to correct amount of octet to draw
+    jp      bb_lastOctet                        ;; [3] (SMC) Jumps to correct amount of octet to draw
     .rept   79
     ld      (hl),d                              ;; [2] Set screen octet to current intensity full octet
     inc     hl                                  ;; [2] Increase screen adress
     .endm
 bb_lastOctet::
-    ld    a,(bayer_rightSP)                     ;; [4] Get right subpixel
-    ld    c,a                                   ;; [1] C = right subpixel 
-    ld    a,(bayer_leftSP)                      ;; [4] a = left subpixel
+bayer_rightSP=. + 1                             
+    ld    c,#3                                  ;; [2] (SMC) C = right subpixel 
+bayer_leftSPForLast=. + 1     
+    ld    a,#0                                  ;; [4] (SMC) A = left subpixel for last
     call  b_setScreenOctetFromSubpixels         ;; [5] Set last octet subpixels from a to c with color
 
     pop     hl                                  ;; [3] Retrieve X0 left screen adress
 
     ;; deal with line loop  
-    ld      a,(bayer_nbLines)                   ;; [4] Check nbLines
+bayer_nbLines=. + 1
+    ld      a,#0                                ;; [2] (SMC) Check nbLines
     or      a                                   ;; [1] == 0 ?
     jr      z,bb_endBayerBox                    ;; [2/3] Yes : we have finished drawing
     dec     a                                   ;; [1] decrease nbLines
-    ld      (bayer_nbLines),a                   ;; [4] Stores new value
+    ld      (bayer_nbLines),a                   ;; [4] (SMC) Stores new value
     ;; Change screen adress to new line and increase y0 for next subline
     ld      a,(bayer_y0)                        ;; [4] a = y0
     inc     a                                   ;; [1] increase y0
-    ld      (bayer_y0),a                        ;; [4] stores y0
+    ld      (bayer_y0),a                        ;; [4] (SMC) stores y0
     and     #7                                  ;; [2] check if Y+1 is on a new char line
     jr      z,bb_adjustHL                       ;; [2/3] if yes, adjust HL 
     ld      a,h                                 ;; [1] a = MSB screen adress
@@ -215,10 +222,3 @@ b_setScreenOctetFromSubpixels::
     ld    (hl),a                                ;; [2] Set screen octet
     inc   hl                                    ;; [2] Next screen octet
     ret                                         ;; [3] return
-
-.area       _DATA
-bayer_y0::    .db         0                     ;; (1) Current y coordinate
-bayer_leftSP:: .db        0                     ;; (1) Left subpixel
-bayer_rightSP:: .db       0                     ;; (1) Right subpixel
-bayer_nbLines:: .db       0                     ;; (1) Number of line to draw
-bayer_nbOctets:: .db      0                     ;; (1) Number of octets between x1 and x0
