@@ -56,7 +56,7 @@
 ;;
 ;; Required memory:
 ;;    98 bytes (95 bytes + 3 bytes C binding wrapper)
-;;    (+91 bytes for bayer internal data)
+;;    (+94 bytes for bayer internal data)
 ;;
 ;; (start code)
 ;;    Case                        | microSecs (us) | CPU Cycles
@@ -106,7 +106,7 @@ lbl:                                    ;;  exit label
     jr      nz,#b_computeMx             ;; [2/3] Different? Need to recompute
     ld      a,(bayer_pen1)              ;; [4] Retrieve A = current pen1
     cp      c                           ;; [1] Check if pen1 modified
-    jr      z,#b_checkIntensity         ;; [2/3] Equal? Move to intensity check
+    jp      z,#b_checkIntensity         ;; [2/3] Equal? Move to intensity check
 
 b_computeMx:
     push    de                          ;; [4] Stores intensity
@@ -127,6 +127,9 @@ b_computeMx:
     ld      a,(hl)                      ;; [2]
     ld__iyl_a                           ;; [2] Full color of pen1
     ld      de,#bayer_lutM1_end         ;; [3] End of LUT (intensity = 15)
+    ld      a,e                         ;; 
+    and     #0xFC                       ;; Align to previous 4 boundary
+    ld      e,a                         ;; 
     ld      c,#15                       ;; [2] Let's compute all 16 intensities
 b_loopIntensity:
     ld      b,#4                        ;; [2] For 4 lines
@@ -162,6 +165,9 @@ b_checkIntensity:
     cp      e                           ;; [1] 
     ret     z                           ;; [2/4] Equal? No need to change ptr
     ld      hl,#bayer_lutM1             ;; [3] HL = start of LUT
+    ld      a,l
+    and     #0xFC
+    ld      l,a
     ld      a,e                         ;; [1] a = intensity
     ld      (bayer_intensity),a         ;; [4] Store current intensity
     rlca                                ;; [1] a = a * 2

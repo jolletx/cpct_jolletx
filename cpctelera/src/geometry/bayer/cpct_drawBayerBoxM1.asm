@@ -48,7 +48,7 @@
 ;; Required memory:
 ;;    356 bytes (348 bytes routine + 5 bytes data + 3 bytes C binding wrapper)
 ;;    (+36 bytes for cpct_subPixelHorizontalMask_M1)
-;;    (+91 bytes for bayer internal data)
+;;    (+94 bytes for bayer internal data)
 ;;
 ;; Time Measures: (does not include 35 us call to cpct_getScreenPtr_asm)
 ;; (start code)
@@ -112,14 +112,12 @@ bb_noYExx:
 
 bb_lineLoop::
     ;; Get current line intensity octet
-    ld      a,(bayer_y0)                        ;; [4] A = Y0 at first
-    and     #0x03                               ;; [2] A = subLine 
-    ld      c,a                                 ;; [1] C = subline
-    ld      b,#0                                ;; [2] B = 0
-
     ex      de,hl                               ;; [1] Preserve hl=screenAdress in de
     ld      hl,(bayer_intensityPtr)             ;; [5] Get current intensity adress 
-    add     hl,bc                               ;; [3] Add subLine
+    ld      a,(bayer_y0)                        ;; [4] A = Y0 at first
+    and     #0x03                               ;; [2] A = subLine 
+    or      l                                   ;; [1] Add subline to pointer
+    ld      l,a                                 ;; [1] HL = Adress of subline for this intensity
     ld      a,(hl)                              ;; [2] A = Intensity Octect of subLine
     ex      de,hl                               ;; [1] Retrieve hl = screenAdress
     ;; Prepare values for horizontal line algo

@@ -22,21 +22,18 @@
 ;;  Data storage for common bayer values
 ;;
 ;;  Size:
-;;      91 bytes (including 4x16 LUT of full octet pixels)
+;;      94 bytes (including 4x16 LUT of full octet pixels and its overhead for alignement)
 ;;-------------------------------------------------------------------------------
 
 .area _DATA
 ;; Default data is computed with pen1 = 1 and pen2 = 2
-bayer_pen1::  .db         1             ;; (1) Current pen1 value (0..3)
-bayer_pen2::  .db         2             ;; (1) Current pen2 value (0..3)
-bayer_intensity::  .db    0             ;; (1) Current intensity (0..15)
+bayer_pen1::  .db         0xFF          ;; (1) Current pen1 value (0..3) - default to recompute
+bayer_pen2::  .db         0xFF          ;; (1) Current pen2 value (0..3) - default to recompute
+bayer_intensity::  .db    0xFF          ;; (1) Current intensity (0..15) - default to recompute
 bayer_intensityPtr:: .dw  #bayer_lutM1  ;; (2) Pointer to sub line 0 of current intensity 
 
 bayer_fullColorBytes:: 
-    .db         #0x00                   ;; (1) pen 0 full color
-    .db         #0xF0                   ;; (1) pen 1 full color
-    .db         #0x0F                   ;; (1) pen 2 full color
-    .db         #0xFF                   ;; (1) pen 3 full color
+    .db         #0x00, #0xF0, #0x0F, #0xFF ;; (4) pen 0..3 full color
 
 ;; Constant 4x4 matrix of 0..15 bayer dithering
 ;; If M[x,y] <= intensity : use pen1 else pen2
@@ -47,24 +44,13 @@ bayer_matrix4x4::
     .db         0x0F, 0x07, 0x0D, 0x05  ;; (4)
 bayer_matrix4x4_end::
 
-;; Computed M1 octets based on pen1=1, pen2=2
+
+;; LUT of 16 intensity by 4 lines octet values
+;; Small buffer to help bayer_LUTM1 to align on 4 for easy line adding in adress with an OR
+paddingForAlignment: .ds 3              ;; (3) Padding values to align on 4
+_bayer_lutM1::
 bayer_lutM1::
-    .db         0xF0, 0xF0, 0xF0, 0xF0  ;; (4) Intensity 0, line 0..3
-    .db         0x78, 0xF0, 0xF0, 0xF0  ;; (4) Intensity 1, line 0..3
-    .db         0x78, 0xF0, 0xD2, 0xF0  ;; (4)
-    .db         0x5A, 0xF0, 0xD2, 0xF0  ;; (4)
-    .db         0x5A, 0xF0, 0x5A, 0xF0  ;; (4)
-    .db         0x5A, 0xB4, 0x5A, 0xF0  ;; (4)
-    .db         0x5A, 0xB4, 0x5A, 0xE1  ;; (4)
-    .db         0x5A, 0xA5, 0x5A, 0xE1  ;; (4)
-    .db         0x5A, 0xA5, 0x5A, 0xA5  ;; (4)
-    .db         0x1E, 0xA5, 0x5A, 0xA5  ;; (4)
-    .db         0x1E, 0xA5, 0x4B, 0xA5  ;; (4)
-    .db         0x0F, 0xA5, 0x4B, 0xA5  ;; (4)
-    .db         0x0F, 0xA5, 0x0F, 0xA5  ;; (4)
-    .db         0x0F, 0x2D, 0x0F, 0xA5  ;; (4)
-    .db         0x0F, 0x2D, 0x0F, 0x87  ;; (4)
-    .db         0x0F, 0x0F, 0x0F, 0x87  ;; (4) Intensity 15, line 0..3
+    .ds         64                      ;; (64) 16 values of 4 lines + 3 to find an alignement adress
 bayer_lutM1_end::
 
 ;; Internal data fort draw API
