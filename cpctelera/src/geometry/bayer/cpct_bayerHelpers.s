@@ -72,7 +72,20 @@ bh_noXExx:
     ; Left Screen adress
     pop     de                                  ;; Retrieve screen Y Adress
     add     hl,de                               ;; hl = XLO + screen adress 
+    call    cpct_drawBayerLineFast_asm
+    pop     iy
+    pop     ix
+    ret
 
+
+;; Inputs:
+;;    HL = screen octet of left point
+;;    C = bayer subline
+;;    IXL = Left subpixel
+;;    IXH = Right subpixel
+;;    IYL = NbOctet
+;; Clobbers AF, BC, DE, HL, IX, IY.
+cpct_drawBayerLineFast_asm::
 
     ; Retrieve bayer octet
     ex      de,hl                               ;; [1] Preserve hl=screenAdress in de
@@ -119,8 +132,6 @@ bh_lastOctet::
     ld__c_ixh                                   ;; C = rightsubpixel
     ld__a_ixl                                   ;; A = current left subpixel (either input or 0)
 
-    pop     iy                                  ;; Retrieve iy
-    pop     ix                                  ;; Retrieve IX before last pseudo call to b_setScreenOctetFromSubpixels
 ;; Set an octet subpixels from a to c with color in d
 b_setScreenOctetFromSubpixels:                  
     push  hl                                    ;; [4] Preserve hl = screen adress

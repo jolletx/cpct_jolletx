@@ -18,10 +18,11 @@
 ;;-------------------------------------------------------------------------------
 .module cpct_bayer
 
+.include "macros/cpct_undocumentedOpcodes.h.s"
+
 .globl      bayer_startScreen
-.globl      bayer_intensityPtr
 .globl      cpct_getScreenPtr_asm
-.globl      cpct_subPixelHorizontalMask_M1
+.globl      cpct_drawBayerLineFast_asm
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -47,7 +48,7 @@
 ;;    AF, BC, DE, HL
 ;;
 ;; Required memory:
-;;    351 bytes (348 bytes routine + 3 bytes C binding wrapper)
+;;    Uses cpct_drawBayerLineFast_asm from cpct_bayerHelpers.s
 ;;    (+36 bytes for cpct_subPixelHorizontalMask_M1)
 ;;    (+94 bytes for bayer internal data)
 ;;
@@ -63,6 +64,8 @@
 
     ;; HL = X0, DE = X1 C = y0 B = Y1 
     ;; Check which is min / max
+    push    ix                                  ;; Preserve IX/IY for Fast line inputs
+    push    iy
     push    hl                                  ;; [4] Save x0
     sbc     hl,de                               ;; [4] HL = x0 - X1
     pop     hl                                  ;; [3] Retrieve x0
@@ -91,7 +94,6 @@ bb_noYExx:
     ld      a,l                                 ;; [1] a = LSB X0
     and     #0x03                               ;; [2] a = subpixel x0
     ld      (bayer_leftSP),a                    ;; [4] (SMC) Store left subpixel
-    ld      (bayer_leftSPForLast),a             ;; [4] (SMC) Store left subpixel for last subpixel if nbOctet = 0
     sra     h                                   ;; [2] divide X0 by 4 - first msb
     rr      l                                   ;; [2] then lsb according to carry
     srl     l                                   ;; [2] l = X offset on screen
@@ -113,64 +115,25 @@ bb_noYExx:
     ;; Algo
 
 bb_lineLoop::
-    ;; Get current line intensity octet
-    ex      de,hl                               ;; [1] Preserve hl=screenAdress in de
-    ld      hl,(bayer_intensityPtr)             ;; [5] Get current intensity adress 
-bayer_y0=. + 1
-    ld      a,#0                                ;; [2] (SMC) A = Y0 
-    and     #0x03                               ;; [2] A = subLine 
-    or      l                                   ;; [1] Add subline to pointer
-    ld      l,a                                 ;; [1] HL = Adress of subline for this intensity
-    ld      a,(hl)                              ;; [2] A = Intensity Octect of subLine
-    ex      de,hl                               ;; [1] Retrieve hl = screenAdress
-    ;; Prepare values for horizontal line algo
-    ld      d,a                                 ;; [1] D = Intensity octet of subline
-bayer_nbOctets=. + 1
-    ld      e,#1                                ;; [2] (SMC) E = nbOctet
-
     ;; Draw line from left to right
-    push    hl                                  ;; [4] Preserve start of line adress
-    ;; check if line is on same octet
-    ld      a,e                                 ;; [1] A = nbOctet
-    or      a                                   ;; [1] nbOctet == 0 ?
-    jp      z,#bb_lastOctet                     ;; [3] yes : we are on last octet
-    ;; Check if left subpixel is 0, so we can use full repetition size
-bayer_leftSP=. + 1    
-    ld      a,#0                                ;; [4] (SMC) A = left subpixel
-    or      a                                   ;; [1] == 0 ?
-    jr      z,#bb_setRepeat                     ;; [2/3] yes, can use full octet
-    ;; Deal wih first octet from subpixel a to subpixel 3
-    ld      c,#3                                ;; [2] c= Subpixel 3 (a = left subpixel)
-    call    b_setScreenOctetFromSubpixels       ;; [5] set screen octet from subpixel a to 3
-    xor     a                                   ;; [1] A = 0
-    ld      (bayer_leftSPForLast),a             ;; [4] (SMC) Set last octet left subpixel to 0
-    dec     e                                   ;; [1] Decrease nbOctet (can be 0 now)
+bayer_y0=. + 1
+    ld      a,#0                                ;; (SMC) A = current Y
+    and     #0x03                               ;; A = Bayer subline
+    ld      c,a                                 ;; C = Bayer subline
 
-bb_setRepeat::
-    ld      a,e                                 ;; [1] A = nbOctet
-    add     a,a                                 ;; [1] A = nbOctet * 2 (ld (hl),d inc hl) - Carry cannot be set 
-    ld      b,#0                                ;; [2] b = 0
-    ld      c,a                                 ;; [1] BC = nbOctet * 2
-    push    hl                                  ;; [4] preserve screen adress
-    ld      hl,#bb_lastOctet                    ;; [3] Points to next instruction after jumpBlock
-    sbc     hl,bc                               ;; [4] Decrease pointer to nb octet to set
-    ld      (b_jmpBlock),hl                     ;; [5] (SMC) modify jump access
-    pop     hl                                  ;; [3] retrieve screen adress
+bayer_leftSP=. + 1
+    ld      a,#0                                ;; (SMC) A = left subpixel
+    ld__ixl_a                                   ;; IXL = left subpixel
+bayer_rightSP=. + 1
+    ld      a,#0                                ;; (SMC) A = right subpixel
+    ld__ixh_a                                   ;; IXH = right subpixel
+bayer_nbOctets=. + 1
+    ld      a,#0                                ;; (SMC) A = octet difference
+    ld__iyl_a                                   ;; IYL = octet difference
 
-b_jmpBlock=. + 1
-    jp      bb_lastOctet                        ;; [3] (SMC) Jumps to correct amount of octet to draw
-    .rept   79
-    ld      (hl),d                              ;; [2] Set screen octet to current intensity full octet
-    inc     hl                                  ;; [2] Increase screen adress
-    .endm
-bb_lastOctet::
-bayer_rightSP=. + 1                             
-    ld    c,#3                                  ;; [2] (SMC) C = right subpixel 
-bayer_leftSPForLast=. + 1     
-    ld    a,#0                                  ;; [4] (SMC) A = left subpixel for last
-    call  b_setScreenOctetFromSubpixels         ;; [5] Set last octet subpixels from a to c with color
-
-    pop     hl                                  ;; [3] Retrieve X0 left screen adress
+    push    hl                                  ;; Preserve start of line address
+    call    cpct_drawBayerLineFast_asm
+    pop     hl                                  ;; Retrieve X0 left screen address
 
     ;; deal with line loop  
 bayer_nbLines=. + 1
@@ -195,28 +158,6 @@ bb_adjustHL::
     jp      bb_lineLoop                         ;; [3] Loop to next line
 
 bb_endBayerBox::
+    pop     iy                                  ;; Restore caller's IY
+    pop     ix                                  ;; Restore caller's IX
     ret                                         ;; [3] End of drawBayerBoxM1 
-
-;; Set screen octet from A subpixel to C subpixel
-b_setScreenOctetFromSubpixels::
-    push  hl                                    ;; [4] Preserve hl
-    ld    b,#0                                  ;; [2] reset b
-    add   a,a                                   ;; [1] a = lsp*2
-    add   a,a                                   ;; [1] a = lsp*4
-    add   a,c                                   ;; [1] a = lsp*4 + rsp
-    ld    hl, #cpct_subPixelHorizontalMask_M1   ;; [3] mask table
-    ld    c,a                                   ;; [1] bc = index in table
-    add   hl,bc                                 ;; [3] hl = adress of mask to use
-    ld    a,(hl)                                ;; [2] a = mask to use for reset pixels with new color
-    pop   hl                                    ;; [3] Restore adress
-;; Use mask on screen octet
-    ld    c,a                                   ;; [1] save mask
-    and   (hl)                                  ;; [2] a = current screen pixels with clear pixels from mask
-    ld    b,a                                   ;; [1] b = current screen octet (cleared from left subpixel to subpixel 3)
-    ld    a,c                                   ;; [1] retrieve mask
-    cpl                                         ;; [1] invert mask
-    and   d                                     ;; [1] set requested color to inverted pixelsmask
-    or    b                                     ;; [1] merge result with current screen octet
-    ld    (hl),a                                ;; [2] Set screen octet
-    inc   hl                                    ;; [2] Next screen octet
-    ret                                         ;; [3] return
