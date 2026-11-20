@@ -28,12 +28,14 @@
 .globl      b_screenY
 
 ;; Compare and swap two vertices using their signed Y coordinates.
-.macro SWAP_VERTEX PAIR1, PAIR2, ?lbl    ;; Swap matching bytes in two vertex fields.
-    ld hl,(#tmpPt+PAIR1+2)               ;; Load vertex zero's Y low byte.
-    ld de,(#tmpPt+PAIR2+2)               ;; Load vertex one's Y low byte.
-    call cpct_compareSigned16                 ;; Compare vertex zero's Y with vertex one's Y.
-    jr c,lbl                             ;; Keep their order when vertex zero is smaller.
-    jr z,lbl                             ;; Keep their order when their Y values are equal.
+.macro SWAP_VERTEX idx1, idx2, ?lbl    ;; Swap matching bytes in two vertex fields.
+PAIR1=idx1*4
+PAIR2=idx2*4
+    ld hl,(#tmpPt + PAIR1 + 2)           ;; HL = Y[idx1] 
+    ld de,(#tmpPt + PAIR2 + 2)           ;; DE = Y[idx2]
+    call cpct_compareSigned16            ;; Compare HL with DE
+    jr c,lbl                             ;; Keep their order when Y[IDX1] is smaller.
+    jr z,lbl                             ;; Keep their order when Y are equal.
     ld (#tmpPt + PAIR1 + 2),de           ;; Set Y[idx1] = de = Y[idx2]
     ld (#tmpPt + PAIR2 + 2),hl           ;; Set Y[idx2] = hl = Y[idx1]
     ld hl,(#tmpPt + PAIR1)               ;; HL = X[idx1]
@@ -72,9 +74,9 @@ _cpct_drawBayerTriangleM1::
     ldir                           ;; Copy the input vertices from HL to tmpPt.
 
     ;; Sort the points by signed Y coordinate ascending
-    SWAP_VERTEX 0,4                ;; Exchange Pt0 and Pt1 if needed.
-    SWAP_VERTEX 4,8                ;; Exchange Pt1 and Pt2 if needed.
-    SWAP_VERTEX 0,4                ;; Exchange Pt0 and Pt1 if needed (move Pt2 to top in case of).
+    SWAP_VERTEX 0,1                ;; Exchange Pt0 and Pt1 if needed.
+    SWAP_VERTEX 1,2                ;; Exchange Pt1 and Pt2 if needed.
+    SWAP_VERTEX 0,1                ;; Exchange Pt0 and Pt1 if needed (move Pt2 to top in case of).
 
     ;; Return when the sorted triangle is entirely outside the screen.
     ld hl,(#tmpPt+2)               ;; HL = TopY
@@ -329,9 +331,9 @@ drawLine_clip_x:                    ;; Clamp both endpoints to the visible horiz
     ld a,(rowY)                     ;; Load the visible row's low byte.
     ld bc,(b_screenY)               ;; Get screen Y adress
     call cpct_bayerDrawHLineM1_asm  ;; Draw the inclusive one-row Bayer box.
-    ld a,(rowY)                     ;; Load the actuel row's low byte.
-    call cpct_incScreenLine              ;; Increase Y screen adress
 drawLine_done:                      ;; Shared return path for skipped or drawn rows.
+    ld a,(rowY)                     ;; Load the current row's low byte.
+    call cpct_incScreenLine         ;; Advance even when this row was horizontally clipped.
     ret                             ;; Return to the triangle rasterizer.
 
 

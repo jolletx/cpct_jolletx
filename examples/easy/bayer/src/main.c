@@ -168,6 +168,64 @@ void rotateIntensityAndPens (u8 *intensity, u8 *pen1, u8 *pen2)
     }
 }
 
+void loopScreen (u8 intensity, u8 pen1, u8 pen2)
+{
+    u8 y0 = 0;
+    while (y0 < 200)
+    {
+        cpct_setBayerMatrixM1 ((u8*)0xC000,intensity,pen1,pen2);
+        cpct_drawBayerBoxM1 (  0, 319, y0, y0 + 9);
+        rotateIntensityAndPens (&intensity,&pen1,&pen2);
+        y0+=10;
+    }
+}
+
+void randomBox (void)
+{
+    u16 x0, x1;
+    u8  y0, y1;
+
+    x0 = cpct_getRandom_mxor_u16() & 0x1FF;
+    if (x0 > 319) x0 -= 320;
+    x1 = cpct_getRandom_mxor_u16() & 0x1FF;
+    if (x1 > 319) x1 -= 320;
+    y0 = cpct_getRandom_mxor_u8();
+    if (y0 > 199) y0 -= 200;
+    y1 = cpct_getRandom_mxor_u8();
+    if (y1 > 199) y1 -= 200;
+
+    cpct_drawBayerBoxM1 (  x0, x1, y0, y1);
+}
+
+void randomTriangle (void)
+{
+    i16  Points [6];
+    i16 * curPt = &Points [0]; 
+                        
+    for (int i=0 ; i<3; i++)
+    {
+        *curPt = (i16) (cpct_getRandom_mxor_u16() & 0x1FF) - 96;
+        curPt++;
+        *curPt = (i16) (cpct_getRandom_mxor_u16() & 0xFF) - 28;
+        curPt++;
+    }
+    cpct_drawBayerTriangleM1 ( Points );
+}
+
+// void fixedTriangle (void)
+// {
+//     i16  Points [6];
+//     i16 * curPt = &Points [0]; 
+//     *curPt++ = -10;
+//     *curPt++ = 20;
+//     *curPt++ = 150;
+//     *curPt++ = -50;
+//     *curPt++ = 50;
+//     *curPt = 230;
+//     cpct_drawBayerTriangleM1 (Points);
+// }
+
+
 ////////////////////////////////////////
 // Main demo
 void main(void) 
@@ -178,87 +236,33 @@ void main(void)
    cpct_setBorder(HW_GREEN);
    cpct_memset_f64(CPCT_VMEM_START, 0x00, 0x4000);  // Clear Mode 1 pattern before switching mode
 
-   i16  Points [6];
+   u8 baseIntensity = 0, basePen1 = 1, basePen2 = 2;
+
 
    do
    {
-        u8 baseIntensity = 0, basePen1 = 1, basePen2 = 2;
-        u8 intensity=0, pen1=1, pen2=2;
-        u16 x0, x1;
-        u8  y0, y1;
         do
         {
-                intensity = baseIntensity;
-                pen1 = basePen1;
-                pen2 = basePen2;   
-                y0 = 0;
-                while (y0 < 200)
-                {
-                    cpct_setBayerMatrixM1 ((u8*)0xC000,intensity,pen1,pen2);
-                    cpct_drawBayerBoxM1 (  0, 319, y0, y0 + 9);
-                    rotateIntensityAndPens (&intensity,&pen1,&pen2);
-                    y0+=10;
-                }
-                rotateIntensityAndPens (&baseIntensity,&basePen1,&basePen2);
-                cpct_scanKeyboard_f();
-        } 
-        while (!cpct_isAnyKeyPressed());
-        do { cpct_scanKeyboard_f(); }while (cpct_isAnyKeyPressed());
-        do
-        {
-           x0 = cpct_getRandom_mxor_u16() & 0x1FF;
-            if (x0 > 319) x0 -= 320;
-            x1 = cpct_getRandom_mxor_u16() & 0x1FF;
-            if (x1 > 319) x1 -= 320;
-            y0 = cpct_getRandom_mxor_u8();
-            if (y0 > 199) y0 -= 200;
-            y1 = cpct_getRandom_mxor_u8();
-            if (y1 > 199) y1 -= 200;
-
-            // intensity = cpct_getRandom_mxor_u8() & 0x0F;
-            // pen1 = cpct_getRandom_mxor_u8() & 0x03;
-            // do 
-            // {
-            //     pen2 = cpct_getRandom_mxor_u8() & 0x03;
-            // } while (pen2 == pen1);
-            rotateIntensityAndPens (&intensity,&pen1,&pen2);
-
-            cpct_setBayerMatrixM1 ((u8*)0xC000,intensity,pen1,pen2);
-            cpct_drawBayerBoxM1 (  x0, x1, y0, y1);
+            loopScreen (baseIntensity, basePen1, basePen2);
+            rotateIntensityAndPens (&baseIntensity,&basePen1,&basePen2);
             cpct_scanKeyboard_f();
         } 
         while (!cpct_isAnyKeyPressed());
         do { cpct_scanKeyboard_f(); }while (cpct_isAnyKeyPressed());
         do
         {
-            i16 * curPt = &Points [0]; 
-            
-            
-            for (int i=0 ; i<3; i++)
-            {
-                *curPt = (i16) (cpct_getRandom_mxor_u16() & 0x1FF) - 96;
-                curPt++;
-                *curPt = (i16) (cpct_getRandom_mxor_u16() & 0xFF) - 28;
-                curPt++;
-            }
-            //*curPt++ = 10;
-            //*curPt++ = 20;
-            //*curPt++ = 150;
-            //*curPt++ = 50;
-            //*curPt++ = 50;
-            //*curPt = 150;
-//
-            intensity = cpct_getRandom_mxor_u8() & 0x0F;
-            pen1 = cpct_getRandom_mxor_u8() & 0x03;
-            do 
-            {
-                pen2 = cpct_getRandom_mxor_u8() & 0x03;
-            } while (pen2 == pen1);
-            rotateIntensityAndPens (&intensity,&pen1,&pen2);
-
-            cpct_setBayerMatrixM1 ((u8*)0xC000,intensity,pen1,pen2);
-            cpct_drawBayerTriangleM1 (Points);
-
+            cpct_setBayerMatrixM1 ((u8*)0xC000,baseIntensity,basePen1,basePen2);
+            randomBox();
+            rotateIntensityAndPens (&baseIntensity,&basePen1,&basePen2);
+            cpct_scanKeyboard_f();
+        } 
+        while (!cpct_isAnyKeyPressed());
+        do { cpct_scanKeyboard_f(); }while (cpct_isAnyKeyPressed());
+        do
+        {
+            cpct_setBayerMatrixM1 ((u8*)0xC000,baseIntensity,basePen1,basePen2);
+            randomTriangle();
+            rotateIntensityAndPens (&baseIntensity,&basePen1,&basePen2);
             cpct_scanKeyboard_f();
         }
         while (!cpct_isAnyKeyPressed());
