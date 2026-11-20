@@ -23,7 +23,6 @@
 // The goal of this example is to demonstrate the how bayer dithering can be applied 
 // to Mode 1 graphisms.
 //------------------------------------------------------------------------------
-void cpct_drawBayerTriangleM1 (i16 *Points);
 
 // static void advanceBayerTriangleEdge (i16 *x, i16 dx, i16 dy, i16 xStep, i16 *error)
 // {
@@ -233,6 +232,8 @@ void main(void)
         do
         {
             i16 * curPt = &Points [0]; 
+            
+            
             for (int i=0 ; i<3; i++)
             {
                 *curPt = (i16) (cpct_getRandom_mxor_u16() & 0x1FF) - 96;
@@ -240,26 +241,23 @@ void main(void)
                 *curPt = (i16) (cpct_getRandom_mxor_u16() & 0xFF) - 28;
                 curPt++;
             }
-
-            // intensity = cpct_getRandom_mxor_u8() & 0x0F;
-            // pen1 = cpct_getRandom_mxor_u8() & 0x03;
-            // do 
-            // {
-            //     pen2 = cpct_getRandom_mxor_u8() & 0x03;
-            // } while (pen2 == pen1);
+            //*curPt++ = 10;
+            //*curPt++ = 20;
+            //*curPt++ = 150;
+            //*curPt++ = 50;
+            //*curPt++ = 50;
+            //*curPt = 150;
+//
+            intensity = cpct_getRandom_mxor_u8() & 0x0F;
+            pen1 = cpct_getRandom_mxor_u8() & 0x03;
+            do 
+            {
+                pen2 = cpct_getRandom_mxor_u8() & 0x03;
+            } while (pen2 == pen1);
             rotateIntensityAndPens (&intensity,&pen1,&pen2);
 
             cpct_setBayerMatrixM1 ((u8*)0xC000,intensity,pen1,pen2);
             cpct_drawBayerTriangleM1 (Points);
-
-            // *curPt++ = 10;
-            // *curPt++ = 20;
-            // *curPt++ = 150;
-            // *curPt++ = 50;
-            // *curPt++ = 50;
-            // *curPt = 150;
-            // cpct_setBayerMatrixM1 ((u8*)0xC000,baseIntensity,basePen1,basePen2);
-            // cpct_drawBayerTriangleM1 (Points);
 
             cpct_scanKeyboard_f();
         }

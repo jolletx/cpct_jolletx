@@ -17,13 +17,21 @@
 ;;-------------------------------------------------------------------------------
 .module cpct_drawBayerTriangleM1    ;; Name this assembly module.
 
-.globl _cpct_drawBayerBoxM1       ;; Link the C-callable Bayer box routine.
+; .globl      _cpct_drawBayerBoxM1       ;; Link the C-callable Bayer box routine.
+.globl      cpct_bayerDrawHLineM1_asm
+.globl      bayer_startScreen
+.globl      cpct_getScreenPtr_asm
+.globl      cpct_compareSigned16
+.globl      cpct_compScreenLine
+.globl      cpct_incScreenLine
+.globl      cpct_clipX
+.globl      b_screenY
 
 ;; Compare and swap two vertices using their signed Y coordinates.
 .macro SWAP_VERTEX PAIR1, PAIR2, ?lbl    ;; Swap matching bytes in two vertex fields.
     ld hl,(#tmpPt+PAIR1+2)               ;; Load vertex zero's Y low byte.
     ld de,(#tmpPt+PAIR2+2)               ;; Load vertex one's Y low byte.
-    call compareSigned16                 ;; Compare vertex zero's Y with vertex one's Y.
+    call cpct_compareSigned16                 ;; Compare vertex zero's Y with vertex one's Y.
     jr c,lbl                             ;; Keep their order when vertex zero is smaller.
     jr z,lbl                             ;; Keep their order when their Y values are equal.
     ld (#tmpPt + PAIR1 + 2),de           ;; Set Y[idx1] = de = Y[idx2]
@@ -37,7 +45,10 @@ lbl:                                     ;; label for skip swap
                       ;; Finish the vertex-word swap macro.
 
 ;; Draw a span between the current long- and short-edge X positions.
-.macro DRAW_EDGE_SPAN              ;; Draw a span from the two current edge X values.
+.macro DRAW_EDGE_SPAN    ?lbl      ;; Draw a span from the two current edge X values.
+    ld a,(rowY+1)                  ;; Check MSB RowY
+    rlca                           ;; Put msb on Carry (check sign)
+    jr c,#lbl
     ld hl,(edgeLong)               ;; Read the long edge's current X.
     ld (lineX0),hl                 ;; Use it as the first span endpoint.
     ld hl,(edgeShortActive)        ;; Point at the active short-edge state.
@@ -45,9 +56,8 @@ lbl:                                     ;; label for skip swap
     inc hl                         ;; Point at the X high byte.
     ld d,(hl)                      ;; Read its current X high byte.
     ld (lineX1),de                 ;; Use it as the second span endpoint.
-    ld hl,(rowY)                   ;; Read the current scanline.
-    ld (lineY),hl                  ;; Set the span's Y coordinate.
-    call drawLine                  ;; Clip and draw this horizontal span.
+    call drawLine                  ;; Clip and draw this horizontal span if row visible.
+lbl:
 .endm                              ;; Finish the span-drawing macro.
 
 .area _CODE                       ;; Place executable code in the code segment.
@@ -69,19 +79,19 @@ _cpct_drawBayerTriangleM1::
     ;; Return when the sorted triangle is entirely outside the screen.
     ld hl,(#tmpPt+2)               ;; HL = TopY
     ld de,#199                     ;; Set the screen's last visible row.
-    call compareSigned16           ;; Compare top Y against the visible bottom.
+    call cpct_compareSigned16           ;; Compare top Y against the visible bottom.
     jp z,visible_top               ;; Continue when top Y equals row 199.
     jp c,visible_top               ;; Continue when top Y is above row 199.
     jp triangle_exit               ;; Skip a triangle whose top is below the screen.
 visible_top:                       ;; The triangle's top is not below the screen.
     ld hl,(#tmpPt+10)              ;; HL = BottomY
     ld de,#0                       ;; Set the first visible row.
-    call compareSigned16           ;; Compare bottom Y with zero.
+    call cpct_compareSigned16           ;; Compare bottom Y with zero.
     jp c,triangle_exit             ;; Skip a triangle entirely above the screen.
 
     ;; Clamp the bottom row once; all scanline loops use this bound. HL = BottomY
     ld de,#199                     ;; Set the screen's last visible row.
-    call compareSigned16           ;; Compare bottom Y with row 199.
+    call cpct_compareSigned16           ;; Compare bottom Y with row 199.
     jr c,bottom_clamped            ;; Keep bottom Y when it is below row 199.
     jr z,bottom_clamped            ;; Keep bottom Y when it equals row 199.
     ld hl,#199                     ;; Otherwise clamp to the last visible row.
@@ -94,10 +104,11 @@ bottom_clamped:                    ;; HL now contains the last row to rasterize.
     ld (edgeShortActive),hl        ;; Store the active short-edge state address.
     ld hl,(#tmpPt+2)               ;; Load the top scanline.
     ld (rowY),hl                   ;; Begin at the top vertex.
+    call cpct_compScreenLine            ;; Compute and store current screen adress X=0 Y=TopY (or 0 if <0)
 row_loop:                          ;; Process rows through the visible bottom.
     ld hl,(rowY)                   ;; Load the current scanline.
     ld de,(#tmpPt+6)                ;; Load the middle vertex's Y coordinate.
-    call compareSigned16           ;; Check whether this is the middle row.
+    call cpct_compareSigned16           ;; Check whether this is the middle row.
     jp nz,row_draw                 ;; Keep the current short edge on other rows.
     ld hl,#edgeShort2              ;; Select the middle-to-bottom edge.
     ld (edgeShortActive),hl        ;; Store the active short-edge state address.
@@ -105,7 +116,7 @@ row_draw:                          ;; Draw this row between the active edges.
     DRAW_EDGE_SPAN                 ;; Clip and render the current horizontal span.
     ld hl,(rowY)                   ;; Load the current scanline.
     ld de,(#tmpPt+10)               ;; Load the bottom vertex's Y coordinate.
-    call compareSigned16           ;; Check whether this is the final triangle row.
+    call cpct_compareSigned16           ;; Check whether this is the final triangle row.
     jp z,triangle_exit             ;; Do not advance beyond the bottom row.
     ld hl,#edgeLong                ;; Point at the top-to-bottom edge state.
     call advanceEdge               ;; Advance it by one scanline.
@@ -115,7 +126,7 @@ row_draw:                          ;; Draw this row between the active edges.
     inc hl                         ;; Increment Y.
     ld (rowY),hl                   ;; Store the next scanline.
     ld de,(visibleBottom)          ;; Load the last visible scanline.
-    call compareSigned16           ;; Check whether the next row is visible.
+    call cpct_compareSigned16           ;; Check whether the next row is visible.
     jp c,row_loop                  ;; Continue when row Y is below the limit.
     jp z,row_loop                  ;; Include the last visible row.
     jp triangle_exit               ;; Stop after the visible bottom.
@@ -125,24 +136,9 @@ triangle_exit:                     ;; Shared function exit for all drawing paths
     pop ix                         ;; Restore the caller's IX value.
     ret                            ;; Return to the C caller.
 
-;; Compare signed 16-bit HL with signed 16-bit DE; carry means HL < DE.
-;; A BC modified - HL DE preserved
-compareSigned16:                   ;; Shared signed-coordinate comparison helper.
-    ld a,h                         ;; Load HL's high byte.
-    xor #0x80                      ;; Bias its sign bit for unsigned ordering.
-    ld b,a                         ;; Save the biased high byte of HL.
-    ld a,d                         ;; Load DE's high byte.
-    xor #0x80                      ;; Bias its sign bit for unsigned ordering.
-    ld c,a                         ;; Save the biased high byte of DE.
-    ld a,b                         ;; Compare the biased high bytes first.
-    cp c                           ;; Set carry/zero flags for the high-byte order.
-    ret nz                         ;; Return when the high bytes differ.
-    ld a,l                         ;; High bytes match; load HL's low byte.
-    cp e                           ;; Compare low bytes as unsigned values.
-    ret                            ;; Return carry/zero flags for the full comparison.
 
 ;; Initialize all three edge state blocks for the sorted vertices.
-setupEdges:                        ;; Initialize the long edge and both short edges.
+setupEdges::                       ;; Initialize the long edge and both short edges.
     ld ix,#tmpPt                   ;; Start the long edge at the top vertex.
     ld iy,#tmpPt+8                 ;; End the long edge at the bottom vertex.
     ld hl,#edgeLong                ;; Store the long edge in its state block.
@@ -158,7 +154,7 @@ setupEdges:                        ;; Initialize the long edge and both short ed
     ret                            ;; Return with all three edges initialized.
 
 ;; IX and IY point at vertices; HL points to the destination edge state.
-setupEdge:                          ;; Initialize X, deltas, step, and error for an edge.
+setupEdge::                         ;; Initialize X, deltas, step, and error for an edge.
     ld (edgeOut),hl                 ;; Save the output edge address across calculations.
     ld e,0(ix)                      ;; Load the start vertex's X low byte.
     ld d,1(ix)                      ;; Load the start vertex's X high byte.
@@ -223,7 +219,7 @@ setup_store_dx:                     ;; Store the absolute horizontal delta.
     ret                             ;; Return with the edge initialized.
 
 ;; Advance one edge using the same integer error accumulation as the C version.
-advanceEdge:                        ;; HL points to the edge state to advance.
+advanceEdge::                        ;; HL points to the edge state to advance.
     ld (edgeOut),hl                 ;; Preserve the edge-state pointer.
     inc hl                          ;; Skip the current X low byte.
     inc hl                          ;; Point to the original DX low byte.
@@ -291,13 +287,8 @@ advance_error_only:                 ;; No more X step is due on this scanline.
     add hl,de                       ;; Accumulate the remaining DX into the error.
     ld (workError),hl               ;; Save the updated error locally.
     ld hl,(edgeOut)                 ;; Reload the edge-state base address.
-    inc hl                          ;; Skip the X low byte.
-    inc hl                          ;; Skip the X high byte.
-    inc hl                          ;; Skip the DX low byte.
-    inc hl                          ;; Skip the DX high byte.
-    inc hl                          ;; Skip the DY low byte.
-    inc hl                          ;; Skip the DY high byte.
-    inc hl                          ;; Skip the signed-step byte.
+    ld de,#7                        ;; offset to error low byte
+    add hl,de                       ;; Move HL to error low byte.
     ld de,(workError)               ;; Load the updated error accumulator.
     ld (hl),e                       ;; Store the error low byte.
     inc hl                          ;; Point to the error high byte.
@@ -305,70 +296,46 @@ advance_error_only:                 ;; No more X step is due on this scanline.
     ret                             ;; Finish advancing this edge for the row.
 
 ;; Clip X to [0,319] and draw the inclusive single-row span.
-drawLine:                           ;; Draw the span currently stored in lineX0/lineX1/lineY.
-    ld hl,(lineY)                   ;; Load the span's signed Y coordinate.
-    ld de,#0                        ;; Set the screen's first row.
-    call compareSigned16            ;; Compare Y against zero.
-    jp c,drawLine_done              ;; Skip the span when Y is negative.
-    ld hl,(lineY)                   ;; Reload the span's Y coordinate.
-    ld de,#199                      ;; Set the screen's last row.
-    call compareSigned16            ;; Compare Y against row 199.
-    jp c,drawLine_clip              ;; Continue when Y is within the screen.
-    jp z,drawLine_clip              ;; Include row 199 as visible.
-    jp drawLine_done                ;; Skip the span when Y exceeds the screen.
-drawLine_clip:                      ;; Reject spans entirely outside the horizontal bounds.
+drawLine::                           ;; Draw the span currently stored in lineX0/lineX1/RowY.
+    ;; Check of Y is already performed (<0 and loop is until VisibleLine which is <=199)
     ld hl,(lineX0)                  ;; Load the first endpoint.
     ld de,#0                        ;; Set the left screen boundary.
-    call compareSigned16            ;; Check whether endpoint zero is negative.
+    call cpct_compareSigned16            ;; Check whether endpoint zero is negative.
     jp nc,drawLine_check_right      ;; Check the right boundary when it is nonnegative.
     ld hl,(lineX1)                  ;; Load the second endpoint.
     ld de,#0                        ;; Set the left screen boundary.
-    call compareSigned16            ;; Check whether endpoint one is negative too.
+    call cpct_compareSigned16            ;; Check whether endpoint one is negative too.
     jp c,drawLine_done              ;; Skip spans when both endpoints are left of screen.
 drawLine_check_right:               ;; Check whether both endpoints are beyond X=319.
     ld hl,(lineX0)                  ;; Load the first endpoint.
     ld de,#319                      ;; Set the right screen boundary.
-    call compareSigned16            ;; Compare the first endpoint with X=319.
+    call cpct_compareSigned16            ;; Compare the first endpoint with X=319.
     jp c,drawLine_clip_x            ;; Clip when endpoint zero is on or left of boundary.
     jp z,drawLine_clip_x            ;; Keep the inclusive endpoint at X=319.
     ld hl,(lineX1)                  ;; Load the second endpoint.
     ld de,#319                      ;; Set the right screen boundary.
-    call compareSigned16            ;; Compare the second endpoint with X=319.
+    call cpct_compareSigned16            ;; Compare the second endpoint with X=319.
     jp c,drawLine_clip_x            ;; Clip when endpoint one is on or left of boundary.
     jp z,drawLine_clip_x            ;; Keep the inclusive endpoint at X=319.
     jp drawLine_done                ;; Skip spans when both endpoints are right of screen.
 drawLine_clip_x:                    ;; Clamp both endpoints to the visible horizontal range.
     ld hl,(lineX0)                  ;; Load the first endpoint for clipping.
-    call clipX                      ;; Clamp it to [0,319].
-    ld (lineX0),hl                  ;; Save the clipped first endpoint.
+    call cpct_clipX                      ;; Clamp it to [0,319].
+    ex de,hl
+    push de
     ld hl,(lineX1)                  ;; Load the second endpoint for clipping.
-    call clipX                      ;; Clamp it to [0,319].
-    ld (lineX1),hl                  ;; Save the clipped second endpoint.
-    ld hl,(lineX0)                  ;; Pass the first X endpoint in HL.
-    ld de,(lineX1)                  ;; Pass the second X endpoint in DE.
-    ld a,(lineY)                    ;; Load the visible row's low byte.
-    ld b,a                          ;; Set Y1 to this row.
-    ld c,a                          ;; Set Y0 to this row.
-    push bc                         ;; Place Y0/Y1 where the C binding expects them.
-    call _cpct_drawBayerBoxM1       ;; Draw the inclusive one-row Bayer box.
+    call cpct_clipX                      ;; Clamp it to [0,319].
+    pop de
+    ld a,(rowY)                     ;; Load the visible row's low byte.
+    ld bc,(b_screenY)               ;; Get screen Y adress
+    call cpct_bayerDrawHLineM1_asm  ;; Draw the inclusive one-row Bayer box.
+    ld a,(rowY)                     ;; Load the actuel row's low byte.
+    call cpct_incScreenLine              ;; Increase Y screen adress
 drawLine_done:                      ;; Shared return path for skipped or drawn rows.
     ret                             ;; Return to the triangle rasterizer.
 
-clipX:                              ;; Clamp signed HL to the horizontal screen range.
-    ld de,#0                        ;; Set the lower bound.
-    call compareSigned16            ;; Compare X with zero.
-    jr nc,clipX_upper               ;; Check the upper bound when X is nonnegative.
-    ld hl,#0                        ;; Replace negative X with the left edge.
-    ret                             ;; Return the clipped coordinate.
-clipX_upper:                        ;; X is nonnegative; check the right edge.
-    ld de,#319                      ;; Set the maximum visible X coordinate.
-    call compareSigned16            ;; Compare X with 319.
-    jr c,clipX_done                 ;; Keep X when it is below 319.
-    jr z,clipX_done                 ;; Keep X when it equals the inclusive boundary.
-    ld hl,#319                      ;; Clamp X above 319 to the right edge.
-clipX_done:                         ;; HL contains the clipped coordinate.
-    ret                             ;; Return the clipped coordinate.
 
+;; Data for triangle draw
 .area _DATA                        ;; Triangle state algorithm data.
 tmpPt:          .ds 12             ;; Hold the private copy of three 4-byte vertices.
 edgeLong:       .ds 2              ;; Current X.
@@ -381,7 +348,6 @@ edgeShort2:     .ds 9              ;; Store the middle-to-bottom short edge.
 edgeShortActive: .ds 2             ;; Point to the short edge active on the current row.
 lineX0:         .ds 2              ;; Hold the first horizontal-span endpoint.
 lineX1:         .ds 2              ;; Hold the second horizontal-span endpoint.
-lineY:          .ds 2              ;; Hold the horizontal span's signed Y coordinate.
 rowY:           .ds 2              ;; Track the current scanline.
 visibleBottom:  .ds 2              ;; Store the bottom scanline clipped to 199.
 edgeOut:        .ds 2              ;; Temporarily hold an edge-state address.
