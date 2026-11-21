@@ -20,140 +20,9 @@
 #include <cpctelera.h>
 
 //------------------------------------------------------------------------------
-// The goal of this example is to demonstrate the how bayer dithering can be applied 
+// The goal of this example is to demonstrate how bayer dithering can be applied 
 // to Mode 1 graphisms.
 //------------------------------------------------------------------------------
-
-// static void advanceBayerTriangleEdge (i16 *x, i16 dx, i16 dy, i16 xStep, i16 *error)
-// {
-//     while (dx >= dy - *error)
-//     {
-//         *x += xStep;
-//         dx -= dy - *error;
-//         *error = 0;
-//     }
-//     *error += dx;
-// }
-
-// static void drawBayerTriangleLine (i16 x0, i16 x1, i16 y)
-// {
-//     if (y < 0 || y > 199 || (x0 < 0 && x1 < 0) || (x0 > 319 && x1 > 319))
-//         return;
-
-//     if (x0 < 0)
-//         x0 = 0;
-//     else if (x0 > 319)
-//         x0 = 319;
-//     if (x1 < 0)
-//         x1 = 0;
-//     else if (x1 > 319)
-//         x1 = 319;
-
-//     // To change into a drawBayerHorizontalLine when available
-//     cpct_drawBayerBoxM1 ((u16)x0, (u16)x1, (u8)y, (u8)y);
-// }
-
-// void cdrawBayerTriangle (i16 *Points)
-// {
-//     i16 tmpPts[6];
-//     i16 *tmpPtr[3];
-//     i16 *swap;
-//     i16 topY, middleY, bottomY, visibleBottom, y;
-//     i16 longX, longDX, longDY, longStepX;
-//     i16 shortX, shortDX, shortDY, shortStepX;
-//     i16 longError, shortError;
-
-//     // Work on a local copy and sort vertex pointers by Y, leaving Points unchanged.
-//     cpct_memcpy (tmpPts, Points, sizeof(tmpPts));
-//     tmpPtr[0] = &tmpPts[0];
-//     tmpPtr[1] = &tmpPts[2];
-//     tmpPtr[2] = &tmpPts[4];
-
-//     if (tmpPtr[0][1] > tmpPtr[1][1])
-//     {
-//         swap = tmpPtr[0];
-//         tmpPtr[0] = tmpPtr[1];
-//         tmpPtr[1] = swap;
-//     }
-//     if (tmpPtr[1][1] > tmpPtr[2][1])
-//     {
-//         swap = tmpPtr[1];
-//         tmpPtr[1] = tmpPtr[2];
-//         tmpPtr[2] = swap;
-//     }
-//     if (tmpPtr[0][1] > tmpPtr[1][1])
-//     {
-//         swap = tmpPtr[0];
-//         tmpPtr[0] = tmpPtr[1];
-//         tmpPtr[1] = swap;
-//     }
-
-//     // Check impossible draw first
-//     topY = tmpPtr[0][1];
-//     middleY = tmpPtr[1][1];
-//     bottomY = tmpPtr[2][1];
-//     if (topY > 199 || bottomY < 0)
-//         return;
-//     visibleBottom = bottomY > 199 ? 199 : bottomY;
-
-//     // A flat triangle collapses to one horizontal span. Getting min and max X and draw a line
-//     // if (topY == bottomY)
-//     // {
-//     //     i16 left = tmpPtr[0][0];
-//     //     i16 right = tmpPtr[0][0];
-// // 
-//     //     if (tmpPtr[1][0] < left)
-//     //         left = tmpPtr[1][0];
-//     //     if (tmpPtr[2][0] < left)
-//     //         left = tmpPtr[2][0];
-//     //     if (tmpPtr[1][0] > right)
-//     //         right = tmpPtr[1][0];
-//     //     if (tmpPtr[2][0] > right)
-//     //         right = tmpPtr[2][0];
-//     //     drawBayerTriangleLine (left, right, topY);
-//     //     return;
-//     // }
-
-//     // Follow the top-to-bottom edge alongside the current half-edge, then draw
-//     // the clipped span on each row.
-//     longX = tmpPtr[0][0];
-//     longDX = tmpPtr[2][0] - tmpPtr[0][0];
-//     longStepX = longDX < 0 ? -1 : 1;
-//     if (longDX < 0)
-//         longDX = -longDX;
-//     longDY = bottomY - topY;
-//     longError = 0;
-
-//     shortX = tmpPtr[0][0];
-//     shortDX = tmpPtr[1][0] - tmpPtr[0][0];
-//     shortStepX = shortDX < 0 ? -1 : 1;
-//     if (shortDX < 0)
-//         shortDX = -shortDX;
-//     shortDY = middleY - topY;
-//     shortError = 0;
-
-//     for (y = topY; y <= visibleBottom; ++y)
-//     {
-//         if (y == middleY)
-//         {
-//             shortX = tmpPtr[1][0];
-//             shortDX = tmpPtr[2][0] - tmpPtr[1][0];
-//             shortStepX = shortDX < 0 ? -1 : 1;
-//             if (shortDX < 0)
-//                 shortDX = -shortDX;
-//             shortDY = bottomY - middleY;
-//             shortError = 0;
-//         }
-
-//         drawBayerTriangleLine (longX, shortX, y);
-//         if (y == bottomY)
-//             break;
-
-//         advanceBayerTriangleEdge (&longX, longDX, longDY, longStepX, &longError);
-//         advanceBayerTriangleEdge (&shortX, shortDX, shortDY, shortStepX, &shortError);
-//     }
-// }
-
 
 void rotateIntensityAndPens (u8 *intensity, u8 *pen1, u8 *pen2)
 {
@@ -197,11 +66,16 @@ void randomBox (void)
     cpct_drawBayerBoxM1 (  x0, x1, y0, y1);
 }
 
-void randomTriangle (void)
+void randomTriangle (u8 rectClip)
 {
     i16  Points [6];
     i16 * curPt = &Points [0]; 
-                        
+
+    if (!rectClip)
+        cpct_setClipRect (0,0,319,199);
+    else
+        cpct_setClipRect (40,20,279,179);
+
     for (int i=0 ; i<3; i++)
     {
         *curPt = (i16) (cpct_getRandom_mxor_u16() & 0x1FF) - 96;
@@ -209,22 +83,78 @@ void randomTriangle (void)
         *curPt = (i16) (cpct_getRandom_mxor_u16() & 0xFF) - 28;
         curPt++;
     }
-    cpct_drawBayerTriangleM1 ( Points );
+    cpct_drawBayerClippedTriangleM1 ( Points );
 }
 
-// void fixedTriangle (void)
-// {
-//     i16  Points [6];
-//     i16 * curPt = &Points [0]; 
-//     *curPt++ = -10;
-//     *curPt++ = 20;
-//     *curPt++ = 150;
-//     *curPt++ = -50;
-//     *curPt++ = 50;
-//     *curPt = 230;
-//     cpct_drawBayerTriangleM1 (Points);
-// }
+typedef struct
+{
+    u16 x;
+    u16 y;
+} BayerPoint;
 
+static i32 crossProduct (const BayerPoint *a, const BayerPoint *b, const BayerPoint *c)
+{
+    return ((i32)b->x - (i32)a->x) * ((i32)c->y - (i32)a->y)
+         - ((i32)b->y - (i32)a->y) * ((i32)c->x - (i32)a->x);
+}
+
+void randomConvexGeometry (void)
+{
+    BayerPoint points[8], hull[16], key;
+    u8 pointCount, hullCount, lowerCount, i, j;
+    u16 coordinate;
+
+    do
+    {
+        pointCount = 3 + (cpct_getRandom_mxor_u16() % 6);
+        for (i = 0; i < pointCount; ++i)
+        {
+            coordinate = cpct_getRandom_mxor_u16() & 0x1FF;
+            if (coordinate >= 320) coordinate -= 320;
+            points[i].x = coordinate;
+
+            coordinate = cpct_getRandom_mxor_u16() & 0xFF;
+            if (coordinate >= 200) coordinate -= 200;
+            points[i].y = coordinate;
+        }
+
+        for (i = 1; i < pointCount; ++i)
+        {
+            key = points[i];
+            j = i;
+            while (j > 0 &&
+                   (points[j - 1].x > key.x ||
+                    (points[j - 1].x == key.x && points[j - 1].y > key.y)))
+            {
+                points[j] = points[j - 1];
+                --j;
+            }
+            points[j] = key;
+        }
+
+        hullCount = 0;
+        for (i = 0; i < pointCount; ++i)
+        {
+            while (hullCount >= 2 &&
+                   crossProduct(&hull[hullCount - 2], &hull[hullCount - 1], &points[i]) <= 0)
+                --hullCount;
+            hull[hullCount++] = points[i];
+        }
+
+        lowerCount = hullCount;
+        for (i = pointCount - 1; i > 0; --i)
+        {
+            while (hullCount > lowerCount &&
+                   crossProduct(&hull[hullCount - 2], &hull[hullCount - 1], &points[i - 1]) <= 0)
+                --hullCount;
+            hull[hullCount++] = points[i - 1];
+        }
+        --hullCount;
+    }
+    while (hullCount < 3);
+
+    cpct_drawBayerConvexM1 ((u16*)hull, hullCount);
+}
 
 ////////////////////////////////////////
 // Main demo
@@ -233,14 +163,13 @@ void main(void)
    // Initialisations
    cpct_disableFirmware();
    cpct_setVideoMode(1);
-   cpct_setBorder(HW_GREEN);
-   cpct_memset_f64(CPCT_VMEM_START, 0x00, 0x4000);  // Clear Mode 1 pattern before switching mode
+
 
    u8 baseIntensity = 0, basePen1 = 1, basePen2 = 2;
 
-
    do
    {
+        cpct_setBorder(HW_BLUE);
         do
         {
             loopScreen (baseIntensity, basePen1, basePen2);
@@ -249,6 +178,7 @@ void main(void)
         } 
         while (!cpct_isAnyKeyPressed());
         do { cpct_scanKeyboard_f(); }while (cpct_isAnyKeyPressed());
+        cpct_setBorder(HW_MAGENTA);
         do
         {
             cpct_setBayerMatrixM1 ((u8*)0xC000,baseIntensity,basePen1,basePen2);
@@ -258,10 +188,32 @@ void main(void)
         } 
         while (!cpct_isAnyKeyPressed());
         do { cpct_scanKeyboard_f(); }while (cpct_isAnyKeyPressed());
+        cpct_setBorder(HW_GREEN);
+        do { cpct_scanKeyboard_f(); }while (cpct_isAnyKeyPressed());
         do
         {
             cpct_setBayerMatrixM1 ((u8*)0xC000,baseIntensity,basePen1,basePen2);
-            randomTriangle();
+            randomTriangle(0);
+            rotateIntensityAndPens (&baseIntensity,&basePen1,&basePen2);
+            cpct_scanKeyboard_f();
+        }
+        while (!cpct_isAnyKeyPressed());
+        do { cpct_scanKeyboard_f(); }while (cpct_isAnyKeyPressed());
+        cpct_setBorder(HW_RED);
+        do
+        {
+            cpct_setBayerMatrixM1 ((u8*)0xC000,baseIntensity,basePen1,basePen2);
+            randomTriangle(1);
+            rotateIntensityAndPens (&baseIntensity,&basePen1,&basePen2);
+            cpct_scanKeyboard_f();
+        }
+        while (!cpct_isAnyKeyPressed());
+        do { cpct_scanKeyboard_f(); }while (cpct_isAnyKeyPressed());
+        cpct_setBorder(HW_WHITE);
+        do
+        {
+            cpct_setBayerMatrixM1 ((u8*)0xC000,baseIntensity,basePen1,basePen2);
+            randomConvexGeometry();
             rotateIntensityAndPens (&baseIntensity,&basePen1,&basePen2);
             cpct_scanKeyboard_f();
         }

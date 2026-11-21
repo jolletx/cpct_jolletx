@@ -22,7 +22,8 @@
 ;;
 ;; Function: cpct_setClipRect
 ;;
-;;    Sets the clipping rectangle used by <cpct_clipLine>. Bounds are inclusive.
+;;    Sets the clipping rectangle used by <cpct_clipLine> and <cpct_clipTriangle>.
+;;    Bounds are inclusive.
 ;;
 ;; C Definition:
 ;;    void cpct_setClipRect(i16 xmin, i16 ymin, i16 xmax, i16 ymax) __z88dk_callee;
@@ -432,6 +433,14 @@ abs_neg:
     ld    h, a                    ;; [1] |
     ret                           ;; [3]
 
+;; Internal shared helper for polygon clipping.
+;; HL = signed coordinate delta, DE = |edge - start|, BC = |end - start|.
+;; Returns the same rounded signed interpolation result as cpct_clipLine.
+cpct_clipLine_intersect::
+    ld    (t_e), de
+    ld    (t_d), bc
+    jp    intersect
+
 ;; ----------------------------------------------------------------------------
 ;; Helper Routine: abs_hl (HL = |HL|, destroys AF)
 ;; ----------------------------------------------------------------------------
@@ -495,10 +504,10 @@ md_one_add:
 ;; ----------------------------------------------------------------------------
 ;; Clipping rectangle (stored with the code: default = whole Mode 1 screen)
 ;; ----------------------------------------------------------------------------
-clip_xmin:  .dw 0              ;; Left bound (inclusive)
-clip_ymin:  .dw 0              ;; Top bound (inclusive)
-clip_xend:  .dw 320            ;; Right bound + 1
-clip_yend:  .dw 200            ;; Bottom bound + 1
+clip_xmin:: .dw 0              ;; Left bound (inclusive)
+clip_ymin:: .dw 0              ;; Top bound (inclusive)
+clip_xend:: .dw 320            ;; Right bound + 1
+clip_yend:: .dw 200            ;; Bottom bound + 1
 
 ;; ----------------------------------------------------------------------------
 ;; Working data: { pointer, value } entries for X0, Y0, X1, Y1 (in this order)
