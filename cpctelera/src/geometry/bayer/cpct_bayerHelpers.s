@@ -82,6 +82,34 @@ bh_noXExx:
     ret
 
 
+;; Prepare the repeated-octet target for a fixed box span.
+;;    IXL = Left subpixel
+;;    IYL = Octet difference
+;; Clobbers AF, BC; preserves HL, IX, and IY.
+cpct_bayerPrepareBoxLine_asm::
+    push    hl
+    ld__a_iyl
+    or      a
+    jr      z,bh_boxNoRepeat
+    ld__a_ixl
+    or      a
+    jr      z,bh_boxRepeatCountReady
+    ld__a_iyl
+    dec     a
+    jr      bh_boxRepeatCountReady
+bh_boxNoRepeat:
+    xor     a
+bh_boxRepeatCountReady:
+    add     a,a
+    ld      b,#0
+    ld      c,a
+    ld      hl,#bh_lastOctet
+    or      a                                   ;; Clear carry before subtracting the repeat length
+    sbc     hl,bc
+    ld      (bh_jmpBlock),hl                    ;; (SMC) Cache the fixed box repeat target
+    pop     hl
+    ret
+
 ;; Inputs:
 ;;    HL = screen octet of left point
 ;;    C = bayer subline
@@ -124,14 +152,45 @@ bh_setRepeat::
     ld__a_iyl
 bh_setRepeatCount:
     push    hl                                  ;; [4] preserve screen adress
-    add     a,a                                 ;; [1] A = nbOctet * 2 (ld (hl),d inc hl) - Carry cannot be set 
+    add     a,a                                 ;; [1] A = repeat count * 2 bytes
     ld      b,#0                                ;; [2] b = 0
     ld      c,a                                 ;; [1] BC = nbOctet * 2
-    ld      hl,#bh_lastOctet                    ;; [3] Points to next instruction after jumpBlock
+    ld      hl,#bh_lastOctet                    ;; [3] End of the repeated-octet block
+    or      a                                   ;; Clear carry before subtracting the repeat length
     sbc     hl,bc                               ;; [4] Decrease pointer to nb octet to set
     ld      (bh_jmpBlock),hl                    ;; [5] (SMC) modify jump access
     pop     hl                                  ;; [3] retrieve screen adress
+    jr      bh_jumpRepeat
 
+;; Box-only draw path; cpct_bayerPrepareBoxLine_asm must be called first.
+cpct_drawBayerLineFastBox_asm::
+    ld__a_ixl
+    ld__iyh_a                                   ;; Reinitialize the left subpixel for this row
+
+    ; Retrieve bayer octet
+    ex      de,hl
+    ld      hl,(bayer_intensityPtr)
+    ld      a,c
+    or      l
+    ld      l,a
+    ld      a,(hl)
+    ex      de,hl
+    ld      d,a
+
+    ld__a_iyl
+    or      a
+    jp      z,#bh_lastOctet
+    ld__a_iyh
+    or      a
+    jr      z,bh_boxSetRepeat
+    ld      c,#3
+    call    b_setScreenOctetFromSubpixels
+    xor     a
+    ld__iyh_a
+bh_boxSetRepeat:
+    jr      bh_jumpRepeat
+
+bh_jumpRepeat:
 bh_jmpBlock=. + 1
     jp      bh_lastOctet                        ;; [3] (SMC) Jumps to correct amount of octet to draw
     .rept   79

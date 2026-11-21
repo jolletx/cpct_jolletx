@@ -22,7 +22,8 @@
 
 .globl      bayer_startScreen
 .globl      cpct_getScreenPtr_asm
-.globl      cpct_drawBayerLineFast_asm
+.globl      cpct_bayerPrepareBoxLine_asm
+.globl      cpct_drawBayerLineFastBox_asm
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -42,13 +43,14 @@
 ;; Details:
 ;;    Draw a box using a Bayer dithering set by <cpct_setBayerMatrixM1>.
 ;;    cpct_setBayerMatrixM1 must be called before to set requested vmem start / intensity / pens
-;;    Uses self modifying code: not suitable for ROMs
+;;    Uses self-modifying code: not suitable for ROMs or reentrant use.
 ;; 
 ;; Destroyed Register values:
 ;;    AF, BC, DE, HL
 ;;
 ;; Required memory:
-;;    Uses cpct_drawBayerLineFast_asm from cpct_bayerHelpers.s
+;;    Uses cpct_bayerPrepareBoxLine_asm and cpct_drawBayerLineFastBox_asm
+;;    from cpct_bayerHelpers.s
 ;;    (+36 bytes for cpct_subPixelHorizontalMask_M1)
 ;;    (+94 bytes for bayer internal data)
 ;;
@@ -111,6 +113,7 @@ bb_noYExx:
     ld      c,l                                 ;; [1] C = XLeft offset
     ld      de,(bayer_startScreen)              ;; [6] de = screen adress start
     call    cpct_getScreenPtr_asm               ;; [5] Output HL = screen start of X0,Y0
+    call    cpct_bayerPrepareBoxLine_asm        ;; Set the fixed-width repeat target once
 
     ;; Algo
 
@@ -122,7 +125,7 @@ bayer_y0=. + 1
     ld      c,a                                 ;; C = Bayer subline
 
     push    hl                                  ;; Preserve start of line address
-    call    cpct_drawBayerLineFast_asm
+    call    cpct_drawBayerLineFastBox_asm
     pop     hl                                  ;; Retrieve X0 left screen address
 
     ;; deal with line loop  
