@@ -15,9 +15,9 @@
 ;;  You should have received a copy of the GNU Lesser General Public License
 ;;  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ;;-------------------------------------------------------------------------------
-.module cpct_drawBayerConvexM1
+.module cpct_drawBayerPolygonM1
 
-.globl cpct_bayerDrawHLineM1_asm
+.globl cpct_bayerDrawHLineM1_worker_asm
 .globl cpct_compareSigned16
 .globl cpct_compScreenLine
 .globl cpct_incScreenLine
@@ -27,7 +27,7 @@
 
 ;; Draw an ordered convex list of on-screen (u16 x, u16 y) points.
 ;; HL = point list, E = byte-sized point count.
-_cpct_drawBayerConvexM1::
+_cpct_drawBayerPolygonM1::
     push ix
     push iy
 
@@ -35,7 +35,7 @@ _cpct_drawBayerConvexM1::
     ld a,e
     ld (pointCount),a
     cp #3
-    jp c,convex_exit
+    jp c,polygon_exit
 
     call findVerticalBounds
 
@@ -55,7 +55,7 @@ _cpct_drawBayerConvexM1::
     ld b,a
     ld a,(bottomY)
     cp b
-    jp z,convex_exit
+    jp z,polygon_exit
 
     call setupForwardChain
     call setupBackwardChain
@@ -63,11 +63,11 @@ _cpct_drawBayerConvexM1::
     ld hl,#edgeForward
     ld a,(forwardActive)
     or a
-    call nz,convexAdvanceEdge
+    call nz,polygonAdvanceEdge
     ld hl,#edgeBackward
     ld a,(backwardActive)
     or a
-    call nz,convexAdvanceEdge
+    call nz,polygonAdvanceEdge
 
     ld a,(topY)
     inc a
@@ -87,23 +87,23 @@ row_loop:
     ld b,a
     ld a,(bottomY)
     cp b
-    jp z,convex_exit
+    jp z,polygon_exit
 
     ld hl,#edgeForward
     ld a,(forwardActive)
     or a
-    call nz,convexAdvanceEdge
+    call nz,polygonAdvanceEdge
     ld hl,#edgeBackward
     ld a,(backwardActive)
     or a
-    call nz,convexAdvanceEdge
+    call nz,polygonAdvanceEdge
 
     ld a,(rowY)
     inc a
     ld (rowY),a
     jp row_loop
 
-convex_exit:
+polygon_exit:
     pop iy
     pop ix
     ret
@@ -216,7 +216,7 @@ setup_forward_seek:
     ld (setupState),hl
     ld hl,#forwardEndY
     ld (setupEndY),hl
-    call convexSetupEdge
+    call polygonSetupEdge
     ld a,#1
     ld (forwardActive),a
     ret
@@ -251,7 +251,7 @@ setup_backward_seek:
     ld (setupState),hl
     ld hl,#backwardEndY
     ld (setupEndY),hl
-    call convexSetupEdge
+    call polygonSetupEdge
     ld a,#1
     ld (backwardActive),a
     ret
@@ -310,7 +310,7 @@ update_forward_next_edge:
     ld (setupState),hl
     ld hl,#forwardEndY
     ld (setupEndY),hl
-    jp convexSetupEdge
+    jp polygonSetupEdge
 
 updateBackwardChain:
     ld a,(backwardActive)
@@ -360,10 +360,10 @@ update_backward_next_edge:
     ld (setupState),hl
     ld hl,#backwardEndY
     ld (setupEndY),hl
-    jp convexSetupEdge
+    jp polygonSetupEdge
 
 ;; Set up a Bresenham-style X edge from chainStart to chainEnd.
-convexSetupEdge:
+polygonSetupEdge:
     ld hl,(setupState)
     ld (edgeOut),hl
 
@@ -481,7 +481,7 @@ next_backward_wrap:
     ret
 
 ;; Advance the current edge by one scanline.
-convexAdvanceEdge:
+polygonAdvanceEdge:
     ld (edgeOut),hl
     inc hl
     inc hl
@@ -562,7 +562,7 @@ drawSpan:
     ld de,(spanX1)
     ld a,(rowY)
     ld bc,(b_screenY)
-    call cpct_bayerDrawHLineM1_asm
+    call cpct_bayerDrawHLineM1_worker_asm
     ld a,(rowY)
     call cpct_incScreenLine
     ret

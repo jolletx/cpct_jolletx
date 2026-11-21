@@ -153,7 +153,7 @@ void randomConvexGeometry (void)
     }
     while (hullCount < 3);
 
-    cpct_drawBayerConvexM1 ((u16*)hull, hullCount);
+    cpct_drawBayerPolygonM1 ((u16*)hull, hullCount);
 }
 
 ////////////////////////////////////////

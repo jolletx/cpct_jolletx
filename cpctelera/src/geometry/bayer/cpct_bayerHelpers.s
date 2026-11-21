@@ -39,7 +39,13 @@
 cpct_bayerDrawHLineM1_asm::
     push    ix
     push    iy
+    call    cpct_bayerDrawHLineM1_worker_asm
+    pop     iy
+    pop     ix
+    ret
 
+;; Internal worker for callers that already preserve IX/IY.
+cpct_bayerDrawHLineM1_worker_asm::
     push    bc                                  ;; Preserve screen start
     and     #0x03                               ;; [2] A = bayer subLine  - Resets Carry flag
     ld      c,a                                 ;; C = Bayer subline
@@ -73,19 +79,20 @@ bh_noXExx:
     pop     de                                  ;; Retrieve screen Y Adress
     add     hl,de                               ;; hl = XLO + screen adress 
     call    cpct_drawBayerLineFast_asm
-    pop     iy
-    pop     ix
     ret
 
 
 ;; Inputs:
 ;;    HL = screen octet of left point
 ;;    C = bayer subline
-;;    IXL = Left subpixel
+;;    IXL = Left subpixel (preserved)
 ;;    IXH = Right subpixel
-;;    IYL = NbOctet
-;; Clobbers AF, BC, DE, HL, IX, IY.
+;;    IYL = NbOctet (preserved)
+;;    IYH = Current left subpixel during drawing
+;; Clobbers AF, BC, DE, HL, IYH.
 cpct_drawBayerLineFast_asm::
+    ld__a_ixl
+    ld__iyh_a                                   ;; Keep IXL constant; track the active left subpixel in IYH
 
     ; Retrieve bayer octet
     ex      de,hl                               ;; [1] Preserve hl=screenAdress in de
@@ -102,18 +109,21 @@ cpct_drawBayerLineFast_asm::
     or      a                                   ;; [1] nbOctet == 0 ?
     jp      z,#bh_lastOctet                     ;; [3] yes : we are on last octet
     ;; Check if left subpixel is 0, so we can use full repetition size
-    ld__a_ixl                                   ;; [4] A = left subpixel
+    ld__a_iyh                                   ;; [4] A = left subpixel
     or      a                                   ;; [1] == 0 ?
     jr      z,#bh_setRepeat                     ;; [2/3] yes, can use full octet
     ;; Deal wih first octet from subpixel a to subpixel 3
     ld      c,#3                                ;; [2] c= right Subpixel 3 (a = left subpixel)
     call    b_setScreenOctetFromSubpixels       ;; [5] set screen octet from subpixel a to 3
     xor     a                                   ;; a = 0
-    ld__ixl_a                                   ;; Set left subpixel to 0 for last octet
-    dec__iyl                                    ;; [1] Decrease nbOctet (can be 0 now)
+    ld__iyh_a                                   ;; Set left subpixel to 0 for last octet
+    ld__a_iyl
+    dec     a                                   ;; Exclude the first octet without changing IYL
+    jr      bh_setRepeatCount
 bh_setRepeat::
+    ld__a_iyl
+bh_setRepeatCount:
     push    hl                                  ;; [4] preserve screen adress
-    ld__a_iyl                                   ;; [1] A = nbOctet
     add     a,a                                 ;; [1] A = nbOctet * 2 (ld (hl),d inc hl) - Carry cannot be set 
     ld      b,#0                                ;; [2] b = 0
     ld      c,a                                 ;; [1] BC = nbOctet * 2
@@ -130,7 +140,7 @@ bh_jmpBlock=. + 1
     .endm
 bh_lastOctet::
     ld__c_ixh                                   ;; C = rightsubpixel
-    ld__a_ixl                                   ;; A = current left subpixel (either input or 0)
+    ld__a_iyh                                   ;; A = current left subpixel (either input or 0)
 
 ;; Set an octet subpixels from a to c with color in d
 b_setScreenOctetFromSubpixels:                  

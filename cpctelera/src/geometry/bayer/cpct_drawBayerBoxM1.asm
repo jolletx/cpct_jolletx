@@ -86,14 +86,14 @@ bb_noYExx:
     ;; Compute right octet and subpixel
     ld      a,e                                 ;; [1] a = LSB X1
     and     #0x03                               ;; [2] a = subpixel x1
-    ld      (bayer_rightSP),a                   ;; [4] (SMC) Store right subpixel
+    ld__ixh_a                                   ;; IXH = right subpixel
     sra     d                                   ;; [2] divide X1 by 4 - first msb
     rr      e                                   ;; [2] then lsb according to carry
     srl     e                                   ;; [2] e = X right offset on screen
     ;; Compute HL octet and subpixel
     ld      a,l                                 ;; [1] a = LSB X0
     and     #0x03                               ;; [2] a = subpixel x0
-    ld      (bayer_leftSP),a                    ;; [4] (SMC) Store left subpixel
+    ld__ixl_a                                   ;; IXL = left subpixel
     sra     h                                   ;; [2] divide X0 by 4 - first msb
     rr      l                                   ;; [2] then lsb according to carry
     srl     l                                   ;; [2] l = X offset on screen
@@ -101,7 +101,7 @@ bb_noYExx:
     ;; Compute and prepare internals
     ld      a,e                                 ;; [1] a = X Right offset
     sub     l                                   ;; [1] a = XRO - XLO = nbOctets
-    ld      (bayer_nbOctets),a                  ;; [4] (SMC) Stores the octet difference between X1 and X0
+    ld__iyl_a                                   ;; IYL = octet difference
     ld      a,b                                 ;; [1] a = Y1
     sub     c                                   ;; [1] a = Y1-Y0 = nbLines
     ld      (bayer_nbLines),a                   ;; [4] Stores number of line to draw
@@ -120,16 +120,6 @@ bayer_y0=. + 1
     ld      a,#0                                ;; (SMC) A = current Y
     and     #0x03                               ;; A = Bayer subline
     ld      c,a                                 ;; C = Bayer subline
-
-bayer_leftSP=. + 1
-    ld      a,#0                                ;; (SMC) A = left subpixel
-    ld__ixl_a                                   ;; IXL = left subpixel
-bayer_rightSP=. + 1
-    ld      a,#0                                ;; (SMC) A = right subpixel
-    ld__ixh_a                                   ;; IXH = right subpixel
-bayer_nbOctets=. + 1
-    ld      a,#0                                ;; (SMC) A = octet difference
-    ld__iyl_a                                   ;; IYL = octet difference
 
     push    hl                                  ;; Preserve start of line address
     call    cpct_drawBayerLineFast_asm

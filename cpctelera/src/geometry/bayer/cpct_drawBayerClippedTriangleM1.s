@@ -18,7 +18,7 @@
 .module cpct_drawBayerClippedTriangleM1
 
 .globl _cpct_clipTriangle
-.globl _cpct_drawBayerConvexM1
+.globl _cpct_drawBayerPolygonM1
 
 .area _CODE
 
@@ -32,7 +32,7 @@ _cpct_drawBayerClippedTriangleM1::
     ld e,a
     ld d,#0
     ld hl,#clippedPoints
-    call _cpct_drawBayerConvexM1
+    call _cpct_drawBayerPolygonM1
     ret
 
 .area _DATA
