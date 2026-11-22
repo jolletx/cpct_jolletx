@@ -69,6 +69,7 @@
     push    ix                                  ;; Preserve IX/IY for Fast line inputs
     push    iy
     push    hl                                  ;; [4] Save x0
+    or      a                                   ;; Clear carry before comparing endpoints
     sbc     hl,de                               ;; [4] HL = x0 - X1
     pop     hl                                  ;; [3] Retrieve x0
     jr      c,#bb_noXExx                        ;; [2/3] if x1 > x0 no exchange
