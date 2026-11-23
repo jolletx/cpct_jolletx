@@ -28,6 +28,5 @@
 .area _DATA
 
 ;; Internal global data fort bayer draw API
-bayer_startScreen::  .ds  2             ;; (2) Starting screen adress (usualy 0xC000)
 bayer_intensityPtr:: .ds  2             ;; (2) Pointer to sub line 0 of current intensity 
 bayer_screenY::      .ds  2             ;; Screen adress of current line (Helper and direct access)

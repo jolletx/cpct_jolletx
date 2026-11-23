@@ -23,7 +23,7 @@
 
 .globl      bayer_screenY
 .globl      bayer_intensityPtr
-.globl      bayer_startScreen
+.globl      geomStartScreen
 
 .include "macros/cpct_undocumentedOpcodes.h.s"
 
@@ -297,7 +297,7 @@ cpct_compareSigned16::                  ;; Shared signed-coordinate comparison h
 ; HL = TopY
 ; All registers modified
 cpct_compScreenLine::
-    ld      de,(bayer_startScreen)     ;; Get stored start screen
+    ld      de,(geomStartScreen)       ;; Get stored start screen
     ; check if TopY is < 0 
     ld      a,h                         ;; a = MSB of TopY
     rlca                                ;; put msb to Carry

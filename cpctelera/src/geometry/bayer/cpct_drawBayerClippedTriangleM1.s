@@ -19,22 +19,19 @@
 
 .globl _cpct_clipTriangle
 .globl _cpct_drawBayerPolygonM1
+.globl geom7PointBuffer
 
 .area _CODE
 
 ;; HL = signed triangle point list.
 _cpct_drawBayerClippedTriangleM1::
-    ld de,#clippedPoints
+    ld de,#geom7PointBuffer
     call _cpct_clipTriangle
     cp #3
     ret c
 
     ld e,a
     ld d,#0
-    ld hl,#clippedPoints
+    ld hl,#geom7PointBuffer
     call _cpct_drawBayerPolygonM1
     ret
-
-.area _DATA
-clippedPoints:
-    .ds 28

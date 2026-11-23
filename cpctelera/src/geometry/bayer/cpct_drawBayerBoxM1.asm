@@ -20,7 +20,7 @@
 
 .include "macros/cpct_undocumentedOpcodes.h.s"
 
-.globl      bayer_startScreen
+.globl      geomStartScreen
 .globl      cpct_getScreenPtr_asm
 .globl      cpct_bayerPrepareBoxLine_asm
 .globl      cpct_drawBayerLineFastBox_asm
@@ -112,7 +112,7 @@ bb_noYExx:
     ;; Computing screen adress of Left octet and subpixels on line C
     ld      b,c                                 ;; [1] B = y0
     ld      c,l                                 ;; [1] C = XLeft offset
-    ld      de,(bayer_startScreen)              ;; [6] de = screen adress start
+    ld      de,(geomStartScreen)                ;; [6] de = screen adress start
     call    cpct_getScreenPtr_asm               ;; [5] Output HL = screen start of X0,Y0
     call    cpct_bayerPrepareBoxLine_asm        ;; Set the fixed-width repeat target once
 

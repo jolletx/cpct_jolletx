@@ -75,7 +75,7 @@
 .globl      bayer_lutM1_end
 .globl      bayer_matrix4x4_end
 .globl      bayer_fullColorBytes
-.globl      bayer_startScreen
+.globl      geomStartScreen
 
 ;; Inputs : HL = current adress inside bayer4x4 matrix , C = current intensity , 
 ;;          B = current computed octet , IYH = Full cotet of pen 2
@@ -98,7 +98,7 @@ lbl:                                    ;;  exit label
 
 ;;  Start
 
-    ld      (bayer_startScreen),hl      ;; [5] Stores screen start
+    ld      (geomStartScreen),hl        ;; [5] Stores screen start
 
 ;; Check of previous calls to recompute only when needed
     ld      a,(bayer_pen2)              ;; [4] Retrieve A = current pen2
@@ -181,20 +181,20 @@ b_checkIntensity:
 .area   _DATA
 
 ;; Default data is computed with pen1 = 1 and pen2 = 2
-bayer_pen1:   .db         0xFF          ;; (1) Current pen1 value (0..3) - default to recompute
-bayer_pen2:   .db         0xFF          ;; (1) Current pen2 value (0..3) - default to recompute
+bayer_pen1:        .db    0xFF          ;; (1) Current pen1 value (0..3) - default to recompute
+bayer_pen2:        .db    0xFF          ;; (1) Current pen2 value (0..3) - default to recompute
 bayer_intensity:   .db    0xFF          ;; (1) Current intensity (0..15) - default to recompute
 
 bayer_fullColorBytes: 
-    .db         #0x00, #0xF0, #0x0F, #0xFF ;; (4) pen 0..3 full color
+    .db      #0x00, #0xF0, #0x0F, #0xFF ;; (4) pen 0..3 full color
 
 ;; Constant 4x4 matrix of 0..15 bayer dithering
 ;; If M[x,y] <= intensity : use pen1 else pen2
 bayer_matrix4x4:
-    .db         0x00, 0x08, 0x02, 0x0A  ;; (4)
-    .db         0x0C, 0x04, 0x0E, 0x06  ;; (4)
-    .db         0x03, 0x0B, 0x01, 0x09  ;; (4)
-    .db         0x0F, 0x07, 0x0D, 0x05  ;; (4)
+    .db      0x00, 0x08, 0x02, 0x0A     ;; (4)
+    .db      0x0C, 0x04, 0x0E, 0x06     ;; (4)
+    .db      0x03, 0x0B, 0x01, 0x09     ;; (4)
+    .db      0x0F, 0x07, 0x0D, 0x05     ;; (4)
 bayer_matrix4x4_end:
 
 ;; LUT of 16 intensity by 4 lines octet values

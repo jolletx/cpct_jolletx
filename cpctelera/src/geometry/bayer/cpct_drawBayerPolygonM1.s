@@ -22,6 +22,21 @@
 .globl cpct_compScreenLine
 .globl cpct_incScreenLine
 .globl bayer_screenY
+.globl geomBottomY
+.globl geomTopY
+.globl geomCurrentY
+.globl geomCurrentX
+.globl geomDeltaX
+.globl geomDeltaY
+.globl geomInputPtr
+.globl geomNbInput
+.globl geomIndex
+.globl geomEndX
+.globl geomStartY
+.globl geomEndY
+.globl geomStep
+.globl geomError
+.globl geomThreshold
 
 .area _CODE
 
@@ -35,16 +50,16 @@
 ;;     from topvertex to bottom. 
 ;;     So first thing first, finds index of Top/Bottom vertices with their Y value
 ;;
-;;     topY = first vertex Y
-;;     bottomY = first vertex Y
+;;     geomTopY = first vertex Y
+;;     geomBottomY = first vertex Y
 ;;     for each other vertex:
-;;         if vertexY < topY:
-;;             topY = vertexY
+;;         if vertexY < geomTopY:
+;;             geomTopY = vertexY
 ;;             topIndex = vertex index
-;;         else if vertexY == topY:
+;;         else if vertexY == geomTopY:
 ;;             update topMinX/topMaxX
-;;         if vertexY > bottomY:
-;;             bottomY = vertexY
+;;         if vertexY > geomBottomY:
+;;             geomBottomY = vertexY
 ;; 
 ;;     draw the top row from topMinX to topMaxX
 ;;     advance to the next row
@@ -56,26 +71,26 @@
 ;;         spanX1 = backward edge X
 ;;         draw horizontal span
 ;;     
-;;         if rowY == bottomY:
+;;         if geomCurrentY == geomBottomY:
 ;;             exit loop
 ;;     
 ;;         advance both active edges one row
-;;         rowY++
+;;         geomCurrentY++
 
 _cpct_drawBayerPolygonM1::
     push ix
     push iy
 
-    ld (pointsBase),hl
+    ld (geomInputPtr),hl
     ld a,e
-    ld (pointCount),a
+    ld (geomNbInput),a
     cp #3
     jp c,polygon_exit
 
     call findVerticalBounds
 
-    ld a,(topY)
-    ld (rowY),a
+    ld a,(geomTopY)
+    ld (geomCurrentY),a
     ld l,a
     ld h,#0
     call cpct_compScreenLine
@@ -86,9 +101,9 @@ _cpct_drawBayerPolygonM1::
     ld (spanX1),hl
     call drawSpan
 
-    ld a,(topY)
+    ld a,(geomTopY)
     ld b,a
-    ld a,(bottomY)
+    ld a,(geomBottomY)
     cp b
     jp z,polygon_exit
 
@@ -104,9 +119,9 @@ _cpct_drawBayerPolygonM1::
     or a
     call nz,polygonAdvanceEdge
 
-    ld a,(topY)
+    ld a,(geomTopY)
     inc a
-    ld (rowY),a
+    ld (geomCurrentY),a
 
 row_loop:
     call updateForwardChain
@@ -118,9 +133,9 @@ row_loop:
     ld (spanX1),hl
     call drawSpan
 
-    ld a,(rowY)
+    ld a,(geomCurrentY)
     ld b,a
-    ld a,(bottomY)
+    ld a,(geomBottomY)
     cp b
     jp z,polygon_exit
 
@@ -133,9 +148,9 @@ row_loop:
     or a
     call nz,polygonAdvanceEdge
 
-    ld a,(rowY)
+    ld a,(geomCurrentY)
     inc a
-    ld (rowY),a
+    ld (geomCurrentY),a
     jp row_loop
 
 polygon_exit:
@@ -145,7 +160,7 @@ polygon_exit:
 
 ;; Find the top and bottom rows and the horizontal extent of the top row.
 findVerticalBounds:
-    ld hl,(pointsBase)
+    ld hl,(geomInputPtr)
     ld e,(hl)
     inc hl
     ld d,(hl)
@@ -153,17 +168,17 @@ findVerticalBounds:
     ld (topMaxX),de
     inc hl
     ld a,(hl)
-    ld (topY),a
-    ld (bottomY),a
+    ld (geomTopY),a
+    ld (geomBottomY),a
     xor a
     ld (topIndex),a
     ld a,#1
-    ld (scanIndex),a
+    ld (geomIndex),a
 
 find_bounds_loop:
-    ld a,(scanIndex)
+    ld a,(geomIndex)
     ld b,a
-    ld a,(pointCount)
+    ld a,(geomNbInput)
     cp b
     ret z
 
@@ -172,21 +187,21 @@ find_bounds_loop:
     ld e,(hl)
     inc hl
     ld d,(hl)
-    ld (workX),de
+    ld (geomCurrentX),de
     inc hl
     ld a,(hl)
     ld (scanY),a
 
     ld b,a
-    ld a,(topY)
+    ld a,(geomTopY)
     cp b
     jr c,find_bounds_check_bottom
     jr z,find_bounds_not_new_top
     ld a,b
-    ld (topY),a
-    ld a,(scanIndex)
+    ld (geomTopY),a
+    ld a,(geomIndex)
     ld (topIndex),a
-    ld hl,(workX)
+    ld hl,(geomCurrentX)
     ld (topMinX),hl
     ld (topMaxX),hl
     jr find_bounds_check_bottom
@@ -195,34 +210,34 @@ find_bounds_not_new_top:
     jr nz,find_bounds_check_bottom
 
     ld hl,(topMinX)
-    ld de,(workX)
+    ld de,(geomCurrentX)
     call cpct_compareSigned16
     jr c,find_bounds_check_top_max
     jr z,find_bounds_check_top_max
-    ld hl,(workX)
+    ld hl,(geomCurrentX)
     ld (topMinX),hl
 
 find_bounds_check_top_max:
     ld hl,(topMaxX)
-    ld de,(workX)
+    ld de,(geomCurrentX)
     call cpct_compareSigned16
     jr nc,find_bounds_check_bottom
-    ld hl,(workX)
+    ld hl,(geomCurrentX)
     ld (topMaxX),hl
 
 find_bounds_check_bottom:
     ld a,(scanY)
     ld b,a
-    ld a,(bottomY)
+    ld a,(geomBottomY)
     cp b
     jr nc,find_bounds_next
     ld a,b
-    ld (bottomY),a
+    ld (geomBottomY),a
 
 find_bounds_next:
-    ld a,(scanIndex)
+    ld a,(geomIndex)
     inc a
-    ld (scanIndex),a
+    ld (geomIndex),a
     jp find_bounds_loop
 
 ;; Initialize each contour chain by skipping the horizontal top edge.
@@ -238,7 +253,7 @@ setup_forward_seek:
     inc hl
     ld a,(hl)
     ld b,a
-    ld a,(topY)
+    ld a,(geomTopY)
     cp b
     jr z,setup_forward_skip
 
@@ -273,7 +288,7 @@ setup_backward_seek:
     inc hl
     ld a,(hl)
     ld b,a
-    ld a,(topY)
+    ld a,(geomTopY)
     cp b
     jr z,setup_backward_skip
 
@@ -303,7 +318,7 @@ updateForwardChain:
     ret z
     ld a,(forwardEndY)
     ld b,a
-    ld a,(rowY)
+    ld a,(geomCurrentY)
     cp b
     ret nz
 
@@ -316,7 +331,7 @@ update_forward_seek:
     inc hl
     ld a,(hl)
     ld b,a
-    ld a,(rowY)
+    ld a,(geomCurrentY)
     cp b
     jr z,update_forward_horizontal
     jr c,update_forward_next_edge
@@ -353,7 +368,7 @@ updateBackwardChain:
     ret z
     ld a,(backwardEndY)
     ld b,a
-    ld a,(rowY)
+    ld a,(geomCurrentY)
     cp b
     ret nz
 
@@ -366,7 +381,7 @@ update_backward_seek:
     inc hl
     ld a,(hl)
     ld b,a
-    ld a,(rowY)
+    ld a,(geomCurrentY)
     cp b
     jr z,update_backward_horizontal
     jr c,update_backward_next_edge
@@ -407,30 +422,30 @@ polygonSetupEdge:
     ld e,(hl)
     inc hl
     ld d,(hl)
-    ld (workX),de
+    ld (geomCurrentX),de
     inc hl
     ld a,(hl)
-    ld (workStartY),a
+    ld (geomStartY),a
 
     ld a,(chainEnd)
     call getPoint
     ld e,(hl)
     inc hl
     ld d,(hl)
-    ld (workEndX),de
+    ld (geomEndX),de
     inc hl
     ld a,(hl)
-    ld (workEndY),a
+    ld (geomEndY),a
 
-    ld hl,(workEndX)
-    ld de,(workX)
+    ld hl,(geomEndX)
+    ld de,(geomCurrentX)
     or a
     sbc hl,de
     ld a,h
     and #0x80
     jr z,setup_positive_x
     ld a,#0xFF
-    ld (workStep),a
+    ld (geomStep),a
     xor a
     sub l
     ld l,a
@@ -440,47 +455,47 @@ polygonSetupEdge:
     jr setup_store_dx
 setup_positive_x:
     ld a,#1
-    ld (workStep),a
+    ld (geomStep),a
 setup_store_dx:
-    ld (workDX),hl
+    ld (geomDeltaX),hl
 
-    ld a,(workEndY)
+    ld a,(geomEndY)
     ld l,a
     ld h,#0
-    ld a,(workStartY)
+    ld a,(geomStartY)
     ld e,a
     ld d,#0
     or a
     sbc hl,de
-    ld (workDY),hl
+    ld (geomDeltaY),hl
 
     ld hl,#0
-    ld (workError),hl
+    ld (geomError),hl
     ld hl,(edgeOut)
-    ld de,(workX)
+    ld de,(geomCurrentX)
     ld (hl),e
     inc hl
     ld (hl),d
     inc hl
-    ld de,(workDX)
+    ld de,(geomDeltaX)
     ld (hl),e
     inc hl
     ld (hl),d
     inc hl
-    ld de,(workDY)
+    ld de,(geomDeltaY)
     ld (hl),e
     inc hl
     ld (hl),d
     inc hl
-    ld a,(workStep)
+    ld a,(geomStep)
     ld (hl),a
     inc hl
-    ld de,(workError)
+    ld de,(geomError)
     ld (hl),e
     inc hl
     ld (hl),d
     ld hl,(setupEndY)
-    ld a,(workEndY)
+    ld a,(geomEndY)
     ld (hl),a
     ret
 
@@ -490,7 +505,7 @@ getPoint:
     ld h,#0
     add hl,hl
     add hl,hl
-    ld de,(pointsBase)
+    ld de,(geomInputPtr)
     add hl,de
     ret
 
@@ -498,7 +513,7 @@ getPoint:
 nextForwardIndex:
     inc a
     ld b,a
-    ld a,(pointCount)
+    ld a,(geomNbInput)
     cp b
     ld a,b
     ret nz
@@ -511,7 +526,7 @@ nextBackwardIndex:
     dec a
     ret
 next_backward_wrap:
-    ld a,(pointCount)
+    ld a,(geomNbInput)
     dec a
     ret
 
@@ -523,33 +538,33 @@ polygonAdvanceEdge:
     ld c,(hl)
     inc hl
     ld b,(hl)
-    ld (workDX),bc
+    ld (geomDeltaX),bc
     inc hl
     ld e,(hl)
     inc hl
     ld d,(hl)
-    ld (workDY),de
+    ld (geomDeltaY),de
     inc hl
     inc hl
     ld a,(hl)
-    ld (workError),a
+    ld (geomError),a
     inc hl
     ld a,(hl)
-    ld (workError+1),a
+    ld (geomError+1),a
 
 advance_edge_loop:
-    ld hl,(workDY)
-    ld de,(workError)
+    ld hl,(geomDeltaY)
+    ld de,(geomError)
     or a
     sbc hl,de
-    ld (workThreshold),hl
-    ld hl,(workDX)
-    ld de,(workThreshold)
+    ld (geomThreshold),hl
+    ld hl,(geomDeltaX)
+    ld de,(geomThreshold)
     or a
     sbc hl,de
     jr c,advance_error_only
 
-    ld (workDX),hl
+    ld (geomDeltaX),hl
     ld hl,(edgeOut)
     ld a,(hl)
     ld e,a
@@ -575,18 +590,18 @@ advance_x_store:
     inc hl
     ld (hl),d
     ld hl,#0
-    ld (workError),hl
+    ld (geomError),hl
     jp advance_edge_loop
 
 advance_error_only:
-    ld hl,(workError)
-    ld de,(workDX)
+    ld hl,(geomError)
+    ld de,(geomDeltaX)
     add hl,de
-    ld (workError),hl
+    ld (geomError),hl
     ld hl,(edgeOut)
     ld de,#7
     add hl,de
-    ld de,(workError)
+    ld de,(geomError)
     ld (hl),e
     inc hl
     ld (hl),d
@@ -595,46 +610,31 @@ advance_error_only:
 drawSpan:
     ld hl,(spanX0)
     ld de,(spanX1)
-    ld a,(rowY)
+    ld a,(geomCurrentY)
     ld bc,(bayer_screenY)
     call cpct_bayerDrawHLineM1_worker_asm
-    ld a,(rowY)
+    ld a,(geomCurrentY)
     call cpct_incScreenLine
     ret
 
 .area _DATA
-pointsBase:       .ds 2
-pointCount:       .ds 1
-scanIndex:        .ds 1
-scanY:            .ds 1
-topIndex:         .ds 1
-topY:             .ds 1
-bottomY:          .ds 1
-topMinX:          .ds 2
-topMaxX:          .ds 2
-rowY:             .ds 1
-spanX0:           .ds 2
-spanX1:           .ds 2
-forwardVertex:    .ds 1
-backwardVertex:   .ds 1
-candidateIndex:   .ds 1
-chainStart:       .ds 1
-chainEnd:         .ds 1
-forwardActive:    .ds 1
-backwardActive:   .ds 1
-forwardEndY:      .ds 1
-backwardEndY:     .ds 1
-setupState:       .ds 2
-setupEndY:        .ds 2
-edgeForward:      .ds 9
-edgeBackward:     .ds 9
-edgeOut:          .ds 2
-workX:            .ds 2
-workEndX:         .ds 2
-workStartY:       .ds 1
-workEndY:         .ds 1
-workDX:           .ds 2
-workDY:           .ds 2
-workStep:         .ds 1
-workError:        .ds 2
-workThreshold:    .ds 2
+scanY:            .ds 1  ;; Y coordinate of the vertex being scanned
+topIndex:         .ds 1  ;; Index of the topmost vertex
+topMinX:          .ds 2  ;; Minimum X among vertices on the top scanline
+topMaxX:          .ds 2  ;; Maximum X among vertices on the top scanline
+spanX0:           .ds 2  ;; Left X endpoint of the span being drawn
+spanX1:           .ds 2  ;; Right X endpoint of the span being drawn
+forwardVertex:    .ds 1  ;; Current vertex index on the forward chain
+backwardVertex:   .ds 1  ;; Current vertex index on the backward chain
+candidateIndex:   .ds 1  ;; Candidate vertex index while advancing a chain
+chainStart:       .ds 1  ;; First vertex index to consider on a chain
+chainEnd:         .ds 1  ;; Last vertex index to consider on a chain
+forwardActive:    .ds 1  ;; Nonzero while the forward edge is active
+backwardActive:   .ds 1  ;; Nonzero while the backward edge is active
+forwardEndY:      .ds 1  ;; End scanline of the forward edge
+backwardEndY:     .ds 1  ;; End scanline of the backward edge
+setupState:       .ds 2  ;; Pointer to the edge record currently being set up
+setupEndY:        .ds 2  ;; End Y coordinate for the edge being set up
+edgeForward:      .ds 9  ;; Forward edge state
+edgeBackward:     .ds 9  ;; Backward edge state
+edgeOut:          .ds 2  ;; Pointer to the edge record being written
