@@ -1,4 +1,4 @@
-.module cpct_drawPolygonM1
+.module cpct_geometry
 
 .globl _cpct_drawLineM1
 .macro CallLineMethod
