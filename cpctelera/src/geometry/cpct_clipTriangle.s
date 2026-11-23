@@ -25,14 +25,72 @@
 
 .area _CODE
 
-;; Clip three ordered signed (x,y) vertices against the shared inclusive rectangle.
-;; HL = input points, DE = output point buffer.
-;; Input coordinates must satisfy cpct_clipLine's [-16384,16383] range.
-;; Output is an ordered, non-closed list of at most seven signed (x,y) pairs.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; Function: cpct_clipTriangle
+;;
+;;    Clips a triangle defined by an array of 3 points (2 x i16 information) against the clipping rectangle
+;;    set by <cpct_setClipRect>. The resulting polygon is returned in target array (7 points max for a triangle)
+;;    that you must allocate.
+;;    Mode independent: use it before any cpct_draw*Polygon* function.
+;;
+;; C Definition:
+;;    u8 cpct_clipTriangle(i16* ptArray, i16 *outputPolygon);
+;;
+;; Input Parameters:
+;;    (2B HL)    ptArray       - Pointer to triangle definition: 3 points X,Y (-16384...16383)
+;;    (2B DE)    outputPolygon - Pointer to polygon (7 points)
+;;
+;; Return Value:
+;;    (1B A) Returns number of resulting vertices in polygon (0..7). A result with fewer than 3 vertices
+;;           is degenerate (no area to fill).
+;;
+;; Parameter Restrictions:
+;;
+;;    * Coordinates must be in the range [-16384, 16383], so that differences
+;;      between coordinates fit in 16 bits.
+;;
+;; Details:
+;;    Consider triangle as a polygon and compute intersection of each edge
+;;    with clipping rectangle. Split or merge point with those intersections into 
+;;    an output polygon.
+;;    Like cpct_clipLine the intersection is computed exactly and
+;;    rounded to the nearest integer, with only 16-bit arithmetic.
+;;
+;; Usage example:
+;; (start code)
+;;    i16 triangle [6] = {-40, 20, 400, 150, 30, 400};
+;;    i16 polygon  [14];
+;;    
+;;    u8 nbPoints = cpct_clipTriangle(triangle, polygon);
+;;    if ( nbPoints > 2)
+;;       cpct_drawPolygonM1(CPCT_VMEM_START, polygon, nbPoints);
+;; (end code)
+;;
+;; Known limitations:
+;;
+;;  * This function will not work from ROM, as the clipping rectangle is
+;;    stored with the code.
+;;
+;; Destroyed Register values:
+;;    AF, BC, DE, HL
+;;
+;; Required memory:
+;;    XXX bytes (<cpct_setClipRect> + <cpct_clipLine> + clipping rectangle
+;;    and working data)
+;;
+;; Time Measures (Measured from C, including call overhead):
+;; (start code)
+;;    Case (default clipping rectangle)               | microSecs (us)
+;;   --------------------------------------------------------------------
+;;    Fully inside        (10,10)-(30,50)-(20,90)     | ~xxx
+;;    Fully outside       (-1,-2)-(-9,-4)-(-5,-8)     | ~xxx
+;;    7 points output     (-50,-20) - (400,250)       | ~xxx
+;;   --------------------------------------------------------------------
+;; (end code)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 _cpct_clipTriangle::
-    push ix
-    push iy
-
+cpct_clipTriangle_asm::
     ld (ct_input),hl
     ld (ct_output),de
 
@@ -190,8 +248,6 @@ ct_copy_output:
 ct_return_empty:
     xor a
 ct_return:
-    pop iy
-    pop ix
     ret
 
 ;; A = point index; returns HL = source point address.

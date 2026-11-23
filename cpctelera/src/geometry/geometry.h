@@ -31,27 +31,26 @@
 // Line clipping (all modes)
 extern void cpct_setClipRect(i16 xmin, i16 ymin, i16 xmax, i16 ymax) __z88dk_callee;
 extern u8   cpct_clipLine(i16* x0, i16* y0, i16* x1, i16* y1) __z88dk_callee;
-// Clips three cyclically ordered signed (x, y) points against cpct_setClipRect's
-// inclusive bounds. Output is ordered, not closed, and needs room for 7 i16 pairs.
-// Returns 0..7 vertices; input is unchanged and a result with fewer than 3 points
-// is degenerate (no area to fill). Coordinates must be in [-16384,16383].
 extern u8   cpct_clipTriangle(const i16* points, i16* clippedPoints) __z88dk_callee;
 
 // Mode 1
-extern void cpct_drawLineM1_f(u8* screen_start, u16 x0, u16 y0, u16 x1, u8 y1, u8 color) __z88dk_callee;
-extern void cpct_drawLineM1  (u8* screen_start, u16 x0, u16 y0, u16 x1, u8 y1, u8 color) __z88dk_callee;
-extern void cpct_drawPlotM1  (u8* screen_start, u16 x, u8 y, u8 color) __z88dk_callee;
-extern void cpct_drawCircleM1(u8* vmem, u16 centerx, u16 centery, u8 radius, u8 color) __z88dk_callee;
-extern void cpct_scanFillM1  (u8* vmem, u16 x, u8 y, u8 newColor) __z88dk_callee;
-extern u8   cpct_getColorAtM1(u8* vmem, u16 x, u16 y) __z88dk_callee;
+extern void cpct_drawLineM1_f   (u8* screen_start, u16 x0, u16 y0, u16 x1, u8 y1, u8 color) __z88dk_callee;
+extern void cpct_drawLineM1     (u8* screen_start, u16 x0, u16 y0, u16 x1, u8 y1, u8 color) __z88dk_callee;
+extern void cpct_drawPlotM1     (u8* screen_start, u16 x, u8 y, u8 color) __z88dk_callee;
+extern void cpct_drawCircleM1   (u8* vmem, u16 centerx, u16 centery, u8 radius, u8 color) __z88dk_callee;
+extern void cpct_scanFillM1     (u8* vmem, u16 x, u8 y, u8 newColor) __z88dk_callee;
+extern u8   cpct_getColorAtM1   (u8* vmem, u16 x, u16 y) __z88dk_callee;
+extern void cpct_drawPolygonM1  (u8 *vmem, u16 *PtArray, u16 numPoints) __z88dk_callee;
+extern void cpct_drawPolygonM1_f(u8 *vmem, u16 *PtArray, u16 numPoints) __z88dk_callee;
 
 // Mode 0
-extern void cpct_drawLineM0_f(u8* screen_start, u16 x0, u16 y0, u16 x1, u8 y1, u8 color) __z88dk_callee;
-extern void cpct_drawLineM0  (u8* screen_start, u16 x0, u16 y0, u16 x1, u8 y1, u8 color) __z88dk_callee;
-extern void cpct_drawPlotM0  (u8* screen_start, u16 x, u8 y, u8 color) __z88dk_callee;
-extern void cpct_drawCircleM0(u8* vmem, u16 centerx, u16 centery, u8 radius, u8 color) __z88dk_callee;
-extern void cpct_scanFillM0  (u8* vmem, u16 x, u8 y, u8 newColor) __z88dk_callee;
-extern u8   cpct_getColorAtM0(u8* vmem, u16 x, u16 y) __z88dk_callee;
-
+extern void cpct_drawLineM0_f   (u8* screen_start, u16 x0, u16 y0, u16 x1, u8 y1, u8 color) __z88dk_callee;
+extern void cpct_drawLineM0     (u8* screen_start, u16 x0, u16 y0, u16 x1, u8 y1, u8 color) __z88dk_callee;
+extern void cpct_drawPlotM0     (u8* screen_start, u16 x, u8 y, u8 color) __z88dk_callee;
+extern void cpct_drawCircleM0   (u8* vmem, u16 centerx, u16 centery, u8 radius, u8 color) __z88dk_callee;
+extern void cpct_scanFillM0     (u8* vmem, u16 x, u8 y, u8 newColor) __z88dk_callee;
+extern u8   cpct_getColorAtM0   (u8* vmem, u16 x, u16 y) __z88dk_callee;
+extern void cpct_drawPolygonM0  (u8 *vmem, u16 *PtArray, u16 numPoints) __z88dk_callee;
+extern void cpct_drawPolygonM0_f(u8 *vmem, u16 *PtArray, u16 numPoints) __z88dk_callee;
 
 #endif
