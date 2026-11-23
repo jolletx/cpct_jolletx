@@ -18,6 +18,7 @@
 ;;-------------------------------------------------------------------------------
 
 ;; Define common variables used inside geometry functions (Video Memory, X0, Y0 ...)
+.module         cpct_geometry
 
 .area _DATA
 

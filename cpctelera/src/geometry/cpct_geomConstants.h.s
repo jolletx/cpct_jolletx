@@ -21,22 +21,22 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Mode 0 - Horizontal pixel values
-XMinM0        =    0                 ;; X min value in pixels for M1 Screen
-XMaxM0        =  159                 ;; X max value in pixels for M1 Screen
-XMaxM0LSB     =  159                 ;; LSB value of XMax (319 - 256)
-XMaxM0MSB     =    0                 ;; MSB value of XMax (319 = 1 * 256 + 63)
+XMinM0        =    0                 ;; X min value in pixels for M0 Screen
+XMaxM0        =  159                 ;; X max value in pixels for M0 Screen (159 = 0 * 256 + 159)
+XMaxM0LSB     =  159                 ;; LSB value of XMax
+XMaxM0MSB     =    0                 ;; MSB value of XMax 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Mode 1 - Horizontal pixel values
 XMinM1        =    0                 ;; X min value in pixels for M1 Screen
-XMaxM1        =  319                 ;; X max value in pixels for M1 Screen
-XMaxM1LSB     =   63                 ;; LSB value of XMax (319 - 256)
-XMaxM1MSB     =    1                 ;; MSB value of XMax (319 = 1 * 256 + 63)
+XMaxM1        =  319                 ;; X max value in pixels for M1 Screen (319 = 1 * 256 + 63)
+XMaxM1LSB     =   63                 ;; LSB value of XMax
+XMaxM1MSB     =    1                 ;; MSB value of XMax 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Mode 2 - Horizontal pixel values
-XMinM2        =    0                 ;; X min value in pixels for M1 Screen
-XMaxM2        =  639                 ;; X max value in pixels for M1 Screen
-XMaxM2LSB     =  127                 ;; LSB value of XMax (639 - 2*256)
-XMaxM2MSB     =    2                 ;; MSB value of XMax (639 = 2 * 256 + 127)
+XMinM2        =    0                 ;; X min value in pixels for M2 Screen
+XMaxM2        =  639                 ;; X max value in pixels for M2 Screen  (639 = 2 * 256 + 127)
+XMaxM2LSB     =  127                 ;; LSB value of XMax
+XMaxM2MSB     =    2                 ;; MSB value of XMax
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Vertical pixel values
 YMin          =     0                 ;; Y min value for all modes
