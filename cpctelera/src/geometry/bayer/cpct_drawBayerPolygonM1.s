@@ -21,7 +21,7 @@
 .globl cpct_compareSigned16
 .globl cpct_compScreenLine
 .globl cpct_incScreenLine
-.globl b_screenY
+.globl bayer_screenY
 
 .area _CODE
 
@@ -596,7 +596,7 @@ drawSpan:
     ld hl,(spanX0)
     ld de,(spanX1)
     ld a,(rowY)
-    ld bc,(b_screenY)
+    ld bc,(bayer_screenY)
     call cpct_bayerDrawHLineM1_worker_asm
     ld a,(rowY)
     call cpct_incScreenLine

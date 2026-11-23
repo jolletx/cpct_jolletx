@@ -18,10 +18,12 @@
 ;;-------------------------------------------------------------------------------
 .module cpct_geometry
 
-.globl      bayer_intensityPtr
 .globl      cpct_subPixelHorizontalMask_M1
-.globl      bayer_startScreen
 .globl      cpct_getScreenPtr_asm
+
+.globl      bayer_screenY
+.globl      bayer_intensityPtr
+.globl      bayer_startScreen
 
 .include "macros/cpct_undocumentedOpcodes.h.s"
 
@@ -125,6 +127,7 @@ cpct_bayerPrepareBoxLine_asm::
     jr      z,bh_boxNoRepeat
     ld__a_ixl
     or      a
+    ld__a_iyl
     jr      z,bh_boxRepeatCountReady
     ld__a_iyl
     dec     a
@@ -304,14 +307,14 @@ cpct_compScreenLine::
     call    cpct_getScreenPtr_asm       ;; compute HL = Y screen adress of 0/TopY 
     ex      de,hl                       ;; DE = screen adress 
 b_storeYScreen:
-    ld      (b_screenY),de
+    ld      (bayer_screenY),de
     ret
 
 
 ; Input A = Current Y value
 ; A HL BC modified
 cpct_incScreenLine::
-    ld      hl,(b_screenY)                      ;; HL = screen Y Adress
+    ld      hl,(bayer_screenY)                      ;; HL = screen Y Adress
     inc     a                                   ;; [1] a = y0 + 1
     and     #7                                  ;; [2] check if Y+1 is on a new char line
     jr      z,bt_adjustHL                       ;; [2/3] if yes, adjust HL 
@@ -323,9 +326,5 @@ bt_adjustHL:
     ld      bc,#0xc850                          ;; [3] Set bc = 0x800 - 0x4000 + 0x50  to move from char line 7 to char line 0 of next char line
     add     hl,bc                               ;; [3] Adjust hl to next line
 bt_setNewAdress:
-    ld      (b_screenY),hl                      ;; Store HL = screen Y+1 Adress
+    ld      (bayer_screenY),hl                      ;; Store HL = screen Y+1 Adress
     ret                                         ;; [3] Return
-
-;; Those data can be accessed by other so they are global symbols
-.area _DATA
-b_screenY::      .ds 2                          ;; Screen adress of current line print used with compScreenLine / incScreenLine
