@@ -4,11 +4,13 @@
 
 .area _CODE
 
-;; HL = video memory, DE = point list, C = point count.
+;; HL = video memory, DE = point list, B = color, C = point count.
 ;; Each point is stored as (u16 x, u16 y). Draws the closing edge.
     ld (vmem),hl
     ld (pointsBase),de
     ld (currentPoint),de
+    ld a,b
+    ld (polygonColor),a
     ld a,c
     ld (pointCount),a
     cp #3
@@ -51,9 +53,9 @@ nextPointStore:
     ld (y1),de
 
     ld hl,(y1)
-    ld a,l
-    ld b,#1
-    ld c,a
+    ld c,l
+    ld a,(polygonColor)
+    ld b,a
     push bc
     ld hl,(x1)
     push hl
@@ -81,6 +83,7 @@ pointsBase:       .ds 2
 currentPoint:     .ds 2
 nextPoint:        .ds 2
 pointCount:       .ds 1
+polygonColor:     .ds 1
 polygonRemaining: .ds 1
 x0:               .ds 2
 y0:               .ds 2

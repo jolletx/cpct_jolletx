@@ -24,7 +24,7 @@
 // to Mode 1 graphisms.
 //------------------------------------------------------------------------------
 
-void rotateIntensityAndPens (u8 *intensity, u8 *pen1, u8 *pen2)
+void rotateIntensityAndPens (u8 *intensity, u8 *pen1, u8 *pen2, u8* pen3)
 {
     (*intensity) ++;
     (*intensity) &= 0x0F;
@@ -34,17 +34,19 @@ void rotateIntensityAndPens (u8 *intensity, u8 *pen1, u8 *pen2)
         (*pen1) &= 0x03;
         (*pen2)++;
         (*pen2) &= 0x03;
+        (*pen3)++;
+        (*pen3) &= 0x03;
     }
 }
 
 void loopScreen (u8 intensity, u8 pen1, u8 pen2)
 {
-    u8 y0 = 0;
+    u8 y0 = 0, fakePen = 1;
     while (y0 < 200)
     {
         cpct_setBayerMatrixM1 ((u8*)0xC000,intensity,pen1,pen2);
         cpct_drawBayerBoxM1 (  0, 319, y0, y0 + 9);
-        rotateIntensityAndPens (&intensity,&pen1,&pen2);
+        rotateIntensityAndPens (&intensity,&pen1,&pen2,&fakePen);
         y0+=10;
     }
 }
@@ -98,7 +100,7 @@ static i32 crossProduct (const BayerPoint *a, const BayerPoint *b, const BayerPo
          - ((i32)b->y - (i32)a->y) * ((i32)c->x - (i32)a->x);
 }
 
-void randomConvexGeometry (void)
+void randomConvexGeometry (u8 penEdge)
 {
     BayerPoint points[8], hull[16], key;
     u8 pointCount, hullCount, lowerCount, i, j;
@@ -154,6 +156,8 @@ void randomConvexGeometry (void)
     while (hullCount < 3);
 
     cpct_drawBayerPolygonM1 ((u16*)hull, hullCount);
+    cpct_drawPolygonM1 ((u8 *)0xC000, (u16*)hull, hullCount, penEdge);
+
 }
 
 ////////////////////////////////////////
@@ -165,7 +169,7 @@ void main(void)
    cpct_setVideoMode(1);
 
 
-   u8 baseIntensity = 0, basePen1 = 1, basePen2 = 2;
+   u8 baseIntensity = 0, basePen1 = 1, basePen2 = 2, baseEdge=3;
 
    do
    {
@@ -173,7 +177,7 @@ void main(void)
         do
         {
             loopScreen (baseIntensity, basePen1, basePen2);
-            rotateIntensityAndPens (&baseIntensity,&basePen1,&basePen2);
+            rotateIntensityAndPens (&baseIntensity,&basePen1,&basePen2,&baseEdge);
             cpct_scanKeyboard_f();
         } 
         while (!cpct_isAnyKeyPressed());
@@ -183,7 +187,7 @@ void main(void)
         {
             cpct_setBayerMatrixM1 ((u8*)0xC000,baseIntensity,basePen1,basePen2);
             randomBox();
-            rotateIntensityAndPens (&baseIntensity,&basePen1,&basePen2);
+            rotateIntensityAndPens (&baseIntensity,&basePen1,&basePen2,&baseEdge);
             cpct_scanKeyboard_f();
         } 
         while (!cpct_isAnyKeyPressed());
@@ -194,7 +198,7 @@ void main(void)
         {
             cpct_setBayerMatrixM1 ((u8*)0xC000,baseIntensity,basePen1,basePen2);
             randomTriangle(0);
-            rotateIntensityAndPens (&baseIntensity,&basePen1,&basePen2);
+            rotateIntensityAndPens (&baseIntensity,&basePen1,&basePen2,&baseEdge);
             cpct_scanKeyboard_f();
         }
         while (!cpct_isAnyKeyPressed());
@@ -204,7 +208,7 @@ void main(void)
         {
             cpct_setBayerMatrixM1 ((u8*)0xC000,baseIntensity,basePen1,basePen2);
             randomTriangle(1);
-            rotateIntensityAndPens (&baseIntensity,&basePen1,&basePen2);
+            rotateIntensityAndPens (&baseIntensity,&basePen1,&basePen2,&baseEdge);
             cpct_scanKeyboard_f();
         }
         while (!cpct_isAnyKeyPressed());
@@ -213,8 +217,8 @@ void main(void)
         do
         {
             cpct_setBayerMatrixM1 ((u8*)0xC000,baseIntensity,basePen1,basePen2);
-            randomConvexGeometry();
-            rotateIntensityAndPens (&baseIntensity,&basePen1,&basePen2);
+            randomConvexGeometry(baseEdge);
+            rotateIntensityAndPens (&baseIntensity,&basePen1,&basePen2,&baseEdge);
             cpct_scanKeyboard_f();
         }
         while (!cpct_isAnyKeyPressed());

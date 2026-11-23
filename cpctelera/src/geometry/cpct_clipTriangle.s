@@ -64,7 +64,7 @@
 ;;    
 ;;    u8 nbPoints = cpct_clipTriangle(triangle, polygon);
 ;;    if ( nbPoints > 2)
-;;       cpct_drawPolygonM1(CPCT_VMEM_START, polygon, nbPoints);
+;;       cpct_drawPolygonM1(CPCT_VMEM_START, polygon, nbPoints, 1);
 ;; (end code)
 ;;
 ;; Known limitations:

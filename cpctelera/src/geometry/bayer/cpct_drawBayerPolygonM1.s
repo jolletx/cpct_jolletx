@@ -27,6 +27,41 @@
 
 ;; Draw an ordered convex list of on-screen (u16 x, u16 y) points.
 ;; HL = point list, E = byte-sized point count.
+
+;; Algorithm
+;;     Purpose is to follow the polygon definition but display lines from 
+;;     top scan line to bottom one.
+;;     Generate a forward chain (input points order) and backward chain (reverse order) 
+;;     from topvertex to bottom. 
+;;     So first thing first, finds index of Top/Bottom vertices with their Y value
+;;
+;;     topY = first vertex Y
+;;     bottomY = first vertex Y
+;;     for each other vertex:
+;;         if vertexY < topY:
+;;             topY = vertexY
+;;             topIndex = vertex index
+;;         else if vertexY == topY:
+;;             update topMinX/topMaxX
+;;         if vertexY > bottomY:
+;;             bottomY = vertexY
+;; 
+;;     draw the top row from topMinX to topMaxX
+;;     advance to the next row
+;;     do:
+;;         update forward chain
+;;         update backward chain
+;;     
+;;         spanX0 = forward edge X
+;;         spanX1 = backward edge X
+;;         draw horizontal span
+;;     
+;;         if rowY == bottomY:
+;;             exit loop
+;;     
+;;         advance both active edges one row
+;;         rowY++
+
 _cpct_drawBayerPolygonM1::
     push ix
     push iy

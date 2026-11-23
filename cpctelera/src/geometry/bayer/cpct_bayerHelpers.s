@@ -26,16 +26,48 @@
 .include "macros/cpct_undocumentedOpcodes.h.s"
 
 ;;-------------------------------------------------------------------------------
-;;  Data storage for common bayer values
+;;  Common methods for Bayer drawing APIs
 ;;
-;;  Size:
-;;      94 bytes (including 4x16 LUT of full octet pixels and its overhead for alignement)
 ;;-------------------------------------------------------------------------------
 
-;; HL = X0 (0..319)
-;; DE = X1 (0..319) no special order on X0 / X1 - Exchanged if needed
-;; BC = screenYAdress (screen adress of X+0, Y )
-;; A = Y (for bayer matrix computation)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; Function: cpct_drawBayerLineFast_asm
+;;
+;;    Draw an horizontal line on screen using bayer dithering.
+;;    
+;;
+;; Inputs:
+;;    HL = screen octet of left point
+;;    C = bayer subline (0..3)
+;;    IXL = Left subpixel (0..3) (preserved)
+;;    IXH = Right subpixel (0..3)
+;;    IYL = NbOctet between left point and right point
+;;    Preserved : IXL,IXH,IYL
+;;    Modified : HL (screen octet of right point)
+;;
+;; Details:
+;;    Draw a line using a Bayer dithering set by <cpct_setBayerMatrixM1>.
+;;    cpct_setBayerMatrixM1 must be called before to set requested intensity / pens
+;;    Uses self-modifying code: not suitable for ROMs or reentrant use.
+;; 
+;; Destroyed Register values:
+;;    AF, BC, DE, HL
+;;
+;; Required memory:
+;;    (+36 bytes for cpct_subPixelHorizontalMask_M1)
+;;    (+94 bytes for bayer internal data)
+;;
+;; Time Measures: (does not include 35 us call to cpct_getScreenPtr_asm)
+;; (start code)
+;;    Case / Coordinates                       | Pixels | microSecs (us) | CPU Cycles
+;;   ---------------------------------------------------------------------------------
+;;    Box x0=0 x1=100 y0=0 y1=4                | 505    | ~1321          | ~
+;;    Box x0=0 x1=319 y0=0 y1=199              | 101    | ~94375         | ~
+;;   ---------------------------------------------------------------------------------
+;; (end code)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 cpct_bayerDrawHLineM1_asm::
     push    ix
     push    iy
@@ -84,8 +116,8 @@ bh_noXExx:
 
 ;; Prepare the repeated-octet target for a fixed box span.
 ;;    IXL = Left subpixel
-;;    IYL = Octet difference
-;; Clobbers AF, BC; preserves HL, IX, and IY.
+;;    IYL = NbOctet
+;; Clobbers AF, BC; preserves HL, DE, IX, and IY.
 cpct_bayerPrepareBoxLine_asm::
     push    hl
     ld__a_iyl
