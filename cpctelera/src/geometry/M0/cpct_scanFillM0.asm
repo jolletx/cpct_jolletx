@@ -54,7 +54,7 @@
 ;;        initSubLoop
 ;;             set a search flag to 'search old_color'
 ;;        subLoop
-;;             if searchFlag is 'search Old Color'
+;;             if geomStep is 'search Old Color'
 ;;                check if pixel is old color
 ;;                if yes
 ;;                   pushcurrent  point into stack and set search flag to 'search not old color'
@@ -104,43 +104,28 @@
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+;; Global Methods
 .globl cpct_getScreenPtr_asm
 
-;; Special values 
-STACK_SIZE = 30                  ;; Max number of elements in points stack
+;; Common geometry variables
+.globl geomStartScreen
+.globl geomCurrentY              
+.globl geomIndex                 ;; Current stack index
+.globl geomCurrentPtr            ;; Current stack pointer
+.globl geomStep                  ;; Search Flag to check if looking for old color or not
+.globl geomLeftScrOctet          
+.globl geomLeftSubPixel
+.globl geomInputPtr              ;; Used as left screen adress
+.globl geomCurScrOctet
+.globl geomCurSubPixel
+.globl geomOutputPtr             ;; Used as current screen adress
 
-;;-------------------------------------------------------------------------------
-;; DATA SECTION
-;;-------------------------------------------------------------------------------
-.area _DATA
-screen_start:     .dw 0          ;; (2) Screen start from input
-
-;; Keep cur values ordered like this for easy incremental access
-;; Byte and subpixel maybe stored as a 16bit register so do not swap order
-cur_byte_offset:  .db 0          ;; (1) Current byte offset
-cur_subpixel:     .db 0          ;; (1) Current subpixel
-cur_y_val:        .db 0          ;; (1) Current y coordinate
-cur_adress:       .dw 0          ;; (2) Current screen adress
-
-left_byte_offset: .db 0          ;; (1) Left byte offset
-left_subpixel:    .db 0          ;; (1) Left subpixel
-left_adress:      .dw 0          ;; (2) Left screen adress
-
-; Flags
-searchFlag:       .db 0          ;; (1) Flag to check if looking for old color or not
-; Color buffers
-new_color:        .ds 2          ;; (4) new color values for sub pixel 0..3
-new_color_full:   .db 0          ;; (1) new color full octet for quick checks of octet
-old_color:        .ds 2          ;; (4) old color values for sub pixel 0..3
-old_color_full:   .db 0          ;; (1) old color full octet for quick fill of octet
-; Stack
-stack_idx:        .db 0          ;; (1) Stack index
-stack_adress:     .dw pt_stack   ;; (2) Current Stack Adress to use
-pt_stack:                        ;; Stack of points to fill horizontaly
-   .rept STACK_SIZE              ;; Allocate a fixed size stack of points 
-      .db 0                      ;; (30) X coordinates from left (0..159) 
-      .db 0                      ;; (30) Y coordinates from top (0..199)
-   .endm
+;; ScanFill variables 
+.globl sf_stack
+.globl sf_newColorM0
+.globl sf_newColorFull
+.globl sf_oldColorM0
+.globl sf_oldColorFull
 
 ;;-------------------------------------------------------------------------------
 ;; CODE SECTION
@@ -148,9 +133,9 @@ pt_stack:                        ;; Stack of points to fill horizontaly
 .area _CODE
 
    ;;  Inputs: HL = VMEM start ptr - DE = X - C  = Y - B  = New Color 
-   ld    (screen_start),hl       ;; [5] Store VMem start
+   ld    (geomStartScreen),hl       ;; [5] Store VMem start
    ld    a,c                     ;; [1] A = Y coord
-   ld    (cur_y_val),a           ;; [4] Store Y value
+   ld    (geomCurrentY),a           ;; [4] Store Y value
 
    ;; Compute new color values
    ;; compute sub pixel 1 - Assuming d=0 because DE < 160 - 
@@ -171,58 +156,58 @@ pt_stack:                        ;; Stack of points to fill horizontaly
    rla                           ;; [1] A =  0  b0 0  b2 0  b1 0  0  CF=0  
    or    b                       ;; [1] A =  0  b0 0  b2 0  b1 0  b3 CF=0   CQFD :)  
 
-   ld    (new_color+1),a         ;; [4] Stores subpixel 1 new color
+   ld    (sf_newColorM0 + 1),a         ;; [4] Stores subpixel 1 new color
    ld    b,a                     ;; [1] B = subpixel 1
    rlca                          ;; [1] Rotate copy Carry - A = Subpixel 0
-   ld    (new_color),a           ;; [4] Stores subpixel 0 new color
-   or    b                       ;; [1] A = full octet of new_color
-   ld    (new_color_full),a      ;; [4] Stores full_octet  
+   ld    (sf_newColorM0),a           ;; [4] Stores subpixel 0 new color
+   or    b                       ;; [1] A = full octet of sf_newColorM0
+   ld    (sf_newColorFull),a      ;; [4] Stores full_octet  
 
    ;; Compute Screen adress and sub pixel offset from X,Y
    xor   a                       ;; [1] A = 0
    srl   e                       ;; [2] E = byte offset , CF = subpixel
    rla                           ;; [1] A = subpixel
-   ld    (cur_subpixel),a        ;; [4] Store subpixel
+   ld    (geomCurSubPixel),a        ;; [4] Store subpixel
    ld    a,e                     ;; [1] A = screen byte offset
-   ld    (cur_byte_offset),a     ;; [4] Store current x coord
+   ld    (geomCurScrOctet),a     ;; [4] Store current x coord
    ld    b, c                    ;; [1] b = Y
    ld    c, a                    ;; [1] c = X in bytes
-   ld    de,(screen_start)       ;; [6] de = VMEM_START_ADRESS
+   ld    de,(geomStartScreen)       ;; [6] de = VMEM_START_ADRESS
    call  cpct_getScreenPtr_asm   ;; [5] HL = Current adress
 
    ;; Get and store old color from adress HL and sub pixel offset (don't care about offical pen value)
-   ld    a,(cur_subpixel)        ;; [4] A = X coord
+   ld    a,(geomCurSubPixel)        ;; [4] A = X coord
    or    a                       ;; [1] Check subpixel 
    ld    a,(hl)                  ;; [2] A = Screen octet
    jr    z,storeOldCol           ;; [2/3] jump over rotation if subpixel 0
    rlca                          ;; [1] rotate copy carry to left to put subpixel 1 into subpixel 0
 storeOldCol:
    and   #0xAA                   ;; [2] Masks subpixel 0
-   ld    hl,#old_color           ;; [3] hl = adress of old_color
+   ld    hl,#sf_oldColorM0           ;; [3] hl = adress of sf_oldColorM0
    ld    (hl),a                  ;; [2] Stores subpixel 0 
-   inc   hl                      ;; [2] points old_color+1 = subpixel 1
+   inc   hl                      ;; [2] points sf_oldColorM0+1 = subpixel 1
    ld    b,a                     ;; [1] B = subpixel 0
    rrca                          ;; [1] Rotate copy Carry - A = Subpixel 1
    ld    (hl),a                  ;; [2] Stores subpixel 1 
-   inc   hl                      ;; [2] Points old_color+2 = full octet
-   or    b                       ;; [1] A = sbp1 | sbp0 = full octet of old_color
+   inc   hl                      ;; [2] Points sf_oldColorM0+2 = full octet
+   or    b                       ;; [1] A = sbp1 | sbp0 = full octet of sf_oldColorM0
    ld    (hl),a                  ;; [2] Stores full_octet  
 
-   ld    hl,#new_color_full      ;; [3] hl = adress of new_color_full
-   cp    (hl)                    ;; [2] Check if old_color == new_color
-   ret   z                       ;; [2/4] If equal old_color==new_color, end : nothing to replace
+   ld    hl,#sf_newColorFull      ;; [3] hl = adress of sf_newColorFull
+   cp    (hl)                    ;; [2] Check if sf_oldColorM0 == sf_newColorM0
+   ret   z                       ;; [2/4] If equal sf_oldColorM0==sf_newColorM0, end : nothing to replace
 
 initALgo:
    ;; Init Stack
    xor   a                       ;; [1] A = 0
-   ld    (stack_idx),a           ;; [4] Stack index = 0
-   ld    a,<#pt_stack            ;; [2] A = low byte of Stack Adress
-   ld    (stack_adress),a        ;; [4] Init low Stack Adress
-   ld    a,>#pt_stack            ;; [2] A = high byte of Stack Adress
-   ld    (stack_adress+1),a      ;; [4] Init high Stack Adress
+   ld    (geomIndex),a           ;; [4] Stack index = 0
+   ld    a,<#sf_stack            ;; [2] A = low byte of Stack Adress
+   ld    (geomCurrentPtr),a        ;; [4] Init low Stack Adress
+   ld    a,>#sf_stack            ;; [2] A = high byte of Stack Adress
+   ld    (geomCurrentPtr+1),a      ;; [4] Init high Stack Adress
 
-   ld    de,(cur_byte_offset)    ;; [6] Retrieve current values for init
-   ld    a,(cur_y_val)           ;; [4] Retrieve Y value
+   ld    de,(geomCurScrOctet)    ;; [6] Retrieve current values for init
+   ld    a,(geomCurrentY)           ;; [4] Retrieve Y value
    ld    c,a                     ;; [1] c = y val
 
    call  pushPoint               ;; [5] Push current point DE, C into stack
@@ -234,49 +219,49 @@ mainLoop:
 
    call  computeAdress           ;; [5] Retrieve HL adress based on E,C (untouched)
    ld    a,c                     ;; [1] a = y value
-   ld    (cur_adress),hl         ;; [5] Save cur adress
-   ld    (cur_byte_offset),de    ;; [6] and byte offset / subpixel
-   ld    (cur_y_val),a           ;; [4] and Y value
+   ld    (geomOutputPtr),hl         ;; [5] Save cur adress
+   ld    (geomCurScrOctet),de    ;; [6] and byte offset / subpixel
+   ld    (geomCurrentY),a           ;; [4] and Y value
 
    call  checkOldColor           ;; [5] If point is no more old color, we have already turned around this point and fill it
    jr    nz,mainLoop             ;; [2/3] Skip it
 
-	ld    a,(new_color_full)  	   ;; [4] A = new_color full
+	ld    a,(sf_newColorFull)  	   ;; [4] A = sf_newColorM0 full
    ld    b,a                     ;; [1] b = full octet new color
 
    call  searchAndDrawLeft       ;; [5] Find first left pixel which is not an old color
 
-   ld    (left_adress),hl        ;; [5] Store last old color left adress
-   ld    (left_byte_offset),de   ;; [6] Store last old color Left byte and subpixel
+   ld    (geomInputPtr),hl        ;; [5] Store last old color left adress
+   ld    (geomLeftScrOctet),de   ;; [6] Store last old color Left byte and subpixel
 
-   ld    hl, (cur_adress)        ;; [5] Retrieve starting values
-   ld    de, (cur_byte_offset)   ;; [6] "       "      "
+   ld    hl, (geomOutputPtr)        ;; [5] Retrieve starting values
+   ld    de, (geomCurScrOctet)   ;; [6] "       "      "
    call  searchAndDrawRight      ;; [5] Find first right pixel which is not an old color
 
-   ld    (cur_adress),hl         ;; [5] Store last right adress for above and below boundaries checks
-   ld    (cur_byte_offset),de    ;; [6] Store last right byte and subpixel
+   ld    (geomOutputPtr),hl         ;; [5] Store last right adress for above and below boundaries checks
+   ld    (geomCurScrOctet),de    ;; [6] Store last right byte and subpixel
 ml_searchNewPoints:              ;; Check lines above and below for new points
 
-   ld    hl, (left_adress)       ;; [5] Retrieve left values
-   ld    de, (left_byte_offset)  ;; [6]
+   ld    hl, (geomInputPtr)       ;; [5] Retrieve left values
+   ld    de, (geomLeftScrOctet)  ;; [6]
 
    ;; Move along upper line to check if new points should be stacked
    call  changeYUp               ;; [5] Compute a new HL and C (c = Y -1), z if c==0 when called
    jr    z,ml_checkBelow         ;; [2/3] Cannot move up, check other line
-   call  searchNewPoints         ;; [5] Push new points inside stack if old_color found above drawn line
+   call  searchNewPoints         ;; [5] Push new points inside stack if sf_oldColorM0 found above drawn line
    inc   c                       ;; [1] Accomodate Y valuebefore resetting HL to current line
 ml_checkBelow:                   ;; C was not changed if from jr z
-   ld    hl, (left_adress)       ;; [5] Retrieve left values (C = Y)
-   ld    de, (left_byte_offset)  ;; [6]
+   ld    hl, (geomInputPtr)       ;; [5] Retrieve left values (C = Y)
+   ld    de, (geomLeftScrOctet)  ;; [6]
    call  changeYDown             ;; [5] Compute a new HL and C, z if top of screen reached
    jr    z,ml_continue           ;; [2/3] Cannot move down, check other line
-   call  searchNewPoints         ;; [5] Push new points inside stack if old_color found above drawn line
+   call  searchNewPoints         ;; [5] Push new points inside stack if sf_oldColorM0 found above drawn line
 ml_continue:
    jr    mainLoop                ;; [3] Check new point in stack
 
 searchAndDrawLeft:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Move HL / DE / B until a pixel which is not old_color or left of screen
+;; Move HL / DE / B until a pixel which is not sf_oldColorM0 or left of screen
 ;; First pixel is set here
 sdl_loopSubpixel:
    call  plotPixel               ;; [5] set new color of d subpixel at HL with color B, first pixel is drawn here
@@ -287,9 +272,9 @@ sdl_loopSubpixel:
    or    a                       ;; [1] check if a is subpixel 0 (so moved from 1 to 0)
    jr    z, sdl_checkSubpixel    ;; [2/3] Yes ?  so we are not on right subpixel and can't check whole octet
 
-   ld    a,(new_color_full)      ;; [4] a = new color full octet
+   ld    a,(sf_newColorFull)      ;; [4] a = new color full octet
    ld    b,a                     ;; [1] b = new color full octet
-   ld    a,(old_color_full)      ;; [4] a = old color full octet
+   ld    a,(sf_oldColorFull)      ;; [4] a = old color full octet
 sdl_loopFullOctet:
    cp    (hl)                    ;; [2] check with screen octet
    jr    nz,sdl_checkSubpixel    ;; [2/3] if not full octet let's do it one subpixel by one subpixel
@@ -308,9 +293,9 @@ sdl_checkSubpixel:
    call  increaseSubpixel        ;; [5] if not, last subpixel was the last one - move back to it
    ret                           ;; [3] return
 
-searchAndDrawRight:              ;; Move HL / DE until a pixel which is not old_color or Right of screen - b = full octet new_color
+searchAndDrawRight:              ;; Move HL / DE until a pixel which is not sf_oldColorM0 or Right of screen - b = full octet sf_newColorM0
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Move and draw HL / DE  until a pixel which is not old_color or right of screen
+;; Move and draw HL / DE  until a pixel which is not sf_oldColorM0 or right of screen
 ;; First pixel is skipped here (because leftDraw has already done it)
 sdr_loopSubpixel:
    call  increaseSubpixel        ;; [5] Move to subpixel on right
@@ -320,10 +305,10 @@ sdr_loopSubpixel:
    or    a                       ;; [1] check if left subpixel (so we reached a new octet)
    jr    nz, sdr_checkSubpixel   ;; [2/3] No ?  Let's print it and move to another one
 
-   ld    a,(new_color_full)      ;; [4] a = new color full octet
+   ld    a,(sf_newColorFull)      ;; [4] a = new color full octet
    ld    b,a                     ;; [1] c = new color full octet
 sdr_loopFullOctet:
-   ld    a,(old_color_full)      ;; [4] a = old color full octet
+   ld    a,(sf_oldColorFull)      ;; [4] a = old color full octet
    cp    (hl)                    ;; [2] check with screen octet
    jr    nz,sdr_checkSubpixel    ;; [2/3] if not full octet let's do it one subpixel by one subpixel
    ld    (hl),b                  ;; [2] Set full octet to new color
@@ -347,32 +332,32 @@ sdr_lastSubpixel:
 
 searchNewPoints:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; check and push points which are old_color (wait for end of old_color to add another one found)
+;; check and push points which are sf_oldColorM0 (wait for end of sf_oldColorM0 to add another one found)
 ;; and move to the right until end of previously draw Line 
    ;; Init
    xor   a                       ;; [1] a = 0
-   ld    (searchFlag),a          ;; [4] reset search flag insertion - looking For old_color (jump over full new color)
+   ld    (geomStep),a          ;; [4] reset search flag insertion - looking For sf_oldColorM0 (jump over full new color)
 
-   ;; Alternate between searching old_color and jumping above old_color on current line
+   ;; Alternate between searching sf_oldColorM0 and jumping above sf_oldColorM0 on current line
    ;; Stops when end of right drawn line reached
 snp_mainLoop:
-   ld    a,(searchFlag)          ;; [4] get current searchFlag
+   ld    a,(geomStep)          ;; [4] get current geomStep
    or    a                       ;; [1] check == 0
-   jr    nz,snp_searchEndOC      ;; [2/3] if !=0 we are looking for end of old_color
+   jr    nz,snp_searchEndOC      ;; [2/3] if !=0 we are looking for end of sf_oldColorM0
 
-;; searching for old_color pixels
-   call  checkOldColor           ;; [5] Do we have an old_color here?
+;; searching for sf_oldColorM0 pixels
+   call  checkOldColor           ;; [5] Do we have an sf_oldColorM0 here?
    jr    nz,snp_nextSearchSP     ;; [2/3] no, move to next subpixel
    
    call  pushPoint               ;; [5] We have a hit, push it on stack and switch flag
    or    a,#0x01                 ;; [2] a != 0
-   ld    (searchFlag),a          ;; [4] flag != 0 means, search for first pixel which is not old_color (jump over old_color)
+   ld    (geomStep),a          ;; [4] flag != 0 means, search for first pixel which is not sf_oldColorM0 (jump over sf_oldColorM0)
    jr    snp_nextSearchSP        ;; [3] move to next subpixel
 snp_searchEndOC:
    call  checkOldColor           ;; [5] search for another color in pixel
    jr    z,snp_nextSearchSP      ;; [2/3] Still old color, wait for another color
    xor   a                       ;; [1] set a = 0
-   ld    (searchFlag),a          ;; [4] Reset flag : search for old color again
+   ld    (geomStep),a          ;; [4] Reset flag : search for old color again
                                  ;; continue to next subpixel
 snp_nextSearchSP:
    call  increaseSubpixel        ;; [5] move to right one subpixel
@@ -383,18 +368,18 @@ snp_nextSearchSP:
    or    a                       ;; [1] check a == 0
    jr    nz, snp_mainLoop        ;; [2/3] Not starting a new octet, let's loop on sub pixels
 
-   ld    a,(searchFlag)          ;; [4] check the searchFlag to set correct full_octet to test
+   ld    a,(geomStep)          ;; [4] check the geomStep to set correct full_octet to test
    or    a                       ;; [1] 
-   jr    z,snp_useNewColor       ;; [2/3] if searching for old_color , we can skip new_color_full octets
+   jr    z,snp_useNewColor       ;; [2/3] if searching for sf_oldColorM0 , we can skip sf_newColorFull octets
 
-   ld    a,(old_color_full)      ;; [4] a = old color full octet
+   ld    a,(sf_oldColorFull)      ;; [4] a = old color full octet
    jr snp_setColorToJump         ;; [3] continue with this color
 snp_useNewColor:
-   ld    a,(new_color_full)      ;; [4] a = new color full octet
+   ld    a,(sf_newColorFull)      ;; [4] a = new color full octet
 snp_setColorToJump:
    ld    b,a                     ;; [1] b = color full octet to skip
 snp_loopFullOctet:
-   ld    a,(cur_byte_offset)     ;; [4] a = right X Offset
+   ld    a,(geomCurScrOctet)     ;; [4] a = right X Offset
    cp    e                       ;; [1] compare with current X Offset
    ret   c                       ;; [2/4] We move above last pixel (e > a), ret from there
    ld    a,b                     ;; [1] a = color full octet to skip
@@ -406,11 +391,11 @@ snp_loopFullOctet:
 
 checkEndOfDrawnLine:            ;; Return ZFlag when last pixel is passed (still no ZFlag on last subpixel)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-   ld    a,(cur_byte_offset)     ;; [4] A = right X Offset
+   ld    a,(geomCurScrOctet)     ;; [4] A = right X Offset
    cp    e                       ;; [1] compare actual X Offset with right X Offset
    ret   c                       ;; [2/4] if e > cur X, not on last octet
    jr    nz,cel_resetZFlag       ;; [2/3] if e < cur X, line is overpassed
-   ld    a,(cur_subpixel)        ;; [4] here e == cur X so check subpixel, A = righ subpixel
+   ld    a,(geomCurSubPixel)        ;; [4] here e == cur X so check subpixel, A = righ subpixel
    cp    d                       ;; [1] compare with actual subpixel, d must be > a to fire ZFlag
    jr    nc,cel_resetZFlag       ;; [2/3] d <= a , no flag
    xor   a                       ;; [1] force ZFLag ON
@@ -420,22 +405,22 @@ cel_resetZFlag:
    or   #0x01                    ;; [2] force ZFlag to OFF
    ret                           ;; [3]
 
-plotPixel:                       ;; Plot pixel D at (hl) in new_color
+plotPixel:                       ;; Plot pixel D at (hl) in sf_newColorM0
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
    push  de                      ;; [4] Preserve DE
    push  hl                      ;; [4] Preserve HL = screen adress
    ld    a,d                     ;; [1] A = subpixel
    or    a                       ;; [1] Check A for subpixel 0
    ld    a,#0x55                 ;; [2] A = Mask to remove subpixel 0
-   ld    hl,#new_color           ;; [3] hl = adress of new color subpixel 0
+   ld    hl,#sf_newColorM0           ;; [3] hl = adress of new color subpixel 0
    jr    z,pp_useMask            ;; [2/3] jr if subpixel 0
    rlca                          ;; [1] A = 0xAA = Mask to remove subpixel 1
-   inc   hl                      ;; [2] HL = adress of new_color subpixel 1 
+   inc   hl                      ;; [2] HL = adress of sf_newColorM0 subpixel 1 
 pp_useMask:
-   ld    e,(hl)                  ;; [2] e = new_color subpixel
+   ld    e,(hl)                  ;; [2] e = sf_newColorM0 subpixel
    pop   hl                      ;; [3] retrieve screen adress
    and   (hl)                    ;; [2] a = subpixel reset of screen octet
-   or    e                       ;; [1] a = merge reset screen octet with new_color subpixel
+   or    e                       ;; [1] a = merge reset screen octet with sf_newColorM0 subpixel
    ld    (hl),a                  ;; [2] Set screen octet
    pop   de                      ;; [3] Retrieve DE
    ret                           ;; [3] return
@@ -457,24 +442,24 @@ computeAdress:                   ;; Compute HL = VMemStart + c mod 7 * &800 + 80
    ld    b,#0                    ;; [2] Reset b
    ld    c,e                     ;; [1] c = byte offset
    add   hl, bc                  ;; [3] rHL' = rHL + x octet
-   ld    bc,(screen_start)       ;; [6] BC = VMEM start
-   add   hl, bc                  ;; [3] rHL' = rHL + screen_start
+   ld    bc,(geomStartScreen)       ;; [6] BC = VMEM start
+   add   hl, bc                  ;; [3] rHL' = rHL + geomStartScreen
    pop   bc                      ;; [3] retrieve BC
    ret                           ;; [3] return
 
-checkOldColor:                  ;; Returns ZFlag ON if color of the pixel at (HL),D is an old_color
+checkOldColor:                  ;; Returns ZFlag ON if color of the pixel at (HL),D is an sf_oldColorM0
    ld    b,(hl)                  ;; [2] b = screen octet
-   ld    a,(old_color_full)      ;; [4] A = full octet old color
+   ld    a,(sf_oldColorFull)      ;; [4] A = full octet old color
    xor   b                       ;; [1] check if A == B
-   ret   z                       ;; [2/4] If full octet is old_color ret ZFlag
+   ret   z                       ;; [2/4] If full octet is sf_oldColorM0 ret ZFlag
 
    push  hl                      ;; [4] save screen adress
    ld    a,d                     ;; [1] A = subpixel
    or    a                       ;; [1] Check subpixel
    ld    a,#0xAA                 ;; [2] A = Mask to remove subpixel 0
-   ld    hl,#old_color           ;; [3] HL = adress of old_color subpixel 0
+   ld    hl,#sf_oldColorM0           ;; [3] HL = adress of sf_oldColorM0 subpixel 0
    jr    z,co_useMask            ;; [2/3] if subpixel 0 jump
-   inc   hl                      ;; [2] HL = adress of new_color subpixel 1
+   inc   hl                      ;; [2] HL = adress of sf_newColorM0 subpixel 1
    rrca                          ;; [1] A = 0x55 = remove Subpixel 1
 co_useMask:
    and   b                       ;; [1] a = masked screen octet
@@ -483,15 +468,15 @@ co_useMask:
    ret                           ;; [3] Z Flag is true if color found in pixel
 pushPoint:                       ;; Push point DE and C into stack - FZ not set : OK - FZ set : no more room
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-   ld    a,(stack_idx)           ;; [4] Get current stack index
-   cp    #STACK_SIZE             ;; [2] Check if stack is full
+   ld    a,(geomIndex)           ;; [4] Get current stack index
+   cp    #SF_STACK_SIZE          ;; [2] Check if stack is full
    ret   z                       ;; [2/4] Return if full
 
-   inc   a                       ;; [1] a = stack_idx + 1
-   ld    (stack_idx),a           ;; [4] store stack_idx
+   inc   a                       ;; [1] a = geomIndex + 1
+   ld    (geomIndex),a           ;; [4] store geomIndex
 
    push  hl                      ;; [4] preserve hl
-   ld    hl,(stack_adress)       ;; [5] HL = Stack Adress
+   ld    hl,(geomCurrentPtr)       ;; [5] HL = Stack Adress
 
    ;; let's put d at begining of e to save one byte in stack by point
    ld    a,d                     ;; [1] A = Subpixel (0..1)
@@ -503,21 +488,21 @@ pushPoint:                       ;; Push point DE and C into stack - FZ not set 
    inc   hl                      ;; [2] Move down
    ld    (hl),c                  ;; [2] Save Y Coordinates
    inc   hl                      ;; [2] Move down
-   ld    (stack_adress),hl       ;; [5] Save new stack address
+   ld    (geomCurrentPtr),hl     ;; [5] Save new stack address
    pop   hl                      ;; [3] retrieve hl
 
    ret                           ;; [3] Going back
 
 popPoint:                        ;; Pop point into DE and C from stack - No need to preserve HL (recomputed) - FZ not set : OK - FZ set : empty stack
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-   ld    a,(stack_idx)           ;; [4] Get current stack index
+   ld    a,(geomIndex)           ;; [4] Get current stack index
    or    a                       ;; [1] Check if stack is empty
    ret   z                       ;; [2/4] If not empty, continue
 
    dec   a                       ;; [1] a = stck_idx - 1
-   ld    (stack_idx),a           ;; [4] store stack_idx
+   ld    (geomIndex),a           ;; [4] store geomIndex
 
-   ld    hl,(stack_adress)       ;; [5] Points to last stack adress - no need to preserve, will be recomputed
+   ld    hl,(geomCurrentPtr)       ;; [5] Points to last stack adress - no need to preserve, will be recomputed
    dec   hl                      ;; [2] Move up
    ld    c,(hl)                  ;; [2] Get Y coordinates
    dec   hl                      ;; [2] Move up
@@ -525,7 +510,7 @@ popPoint:                        ;; Pop point into DE and C from stack - No need
    srl   e                       ;; [2] E = byte offset, CF = subpixel
    ld    d,#0                    ;; [2] D = 0
    rl    d                       ;; [2] D = subpixel
-   ld    (stack_adress),hl       ;; [5] Save new stack address
+   ld    (geomCurrentPtr),hl       ;; [5] Save new stack address
    or    #0x01                   ;; [2] reset Z flag
 
    ret                           ;; [3] return

@@ -17,10 +17,28 @@
 ;;-------------------------------------------------------------------------------
 .module cpct_geometry
 
+; Common geometric variables
+.globl geomCurrentPtr
+.globl geomNextPtr
+.globl geomOutputPtr
+.globl geomIndex
+.globl geomStep
+.globl geomCurrentX
+.globl geomCurrentY
+.globl geomX0
+.globl geomY0
+.globl geomX1                 ; Used as Last point X
+.globl geomY1                 ; Used as Last point Y
+.globl geomNbInput
+.globl geomPreviousX
+.globl geomPreviousY
+
+; Clipping variables
 .globl clip_xmin
 .globl clip_ymin
 .globl clip_xend
 .globl clip_yend
+; Clipping methods
 .globl cpct_clipLine_intersect
 
 .area _CODE
@@ -91,23 +109,11 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 _cpct_clipTriangle::
 cpct_clipTriangle_asm::
-    ld (ct_input),hl
-    ld (ct_output),de
+    ld (geomOutputPtr),de
 
-    ;; An empty rectangle has no clipped polygon.
-    ld hl,(clip_xmin)
-    ld de,(clip_xend)
-    or a
-    sbc hl,de
-    jp p,ct_return_empty
-    ld hl,(clip_ymin)
-    ld de,(clip_yend)
-    or a
-    sbc hl,de
-    jp p,ct_return_empty
+    ;; No test on empty rectangle.
 
     ;; Copy the input first so the output may alias it.
-    ld hl,(ct_input)
     ld de,#ct_bufferA
     ld b,#12
 ct_copy_input:
@@ -118,39 +124,39 @@ ct_copy_input:
     djnz ct_copy_input
 
     ld hl,#ct_bufferA
-    ld (ct_src),hl
+    ld (geomCurrentPtr),hl
     ld hl,#ct_bufferB
-    ld (ct_dst),hl
+    ld (geomNextPtr),hl
     ld a,#3
-    ld (ct_srcCount),a
+    ld (geomNbInput),a
     xor a
-    ld (ct_pass),a
+    ld (geomStep),a
     ld (ct_overflow),a
 
 ct_pass_loop:
     xor a
     ld (ct_dstCount),a
-    ld a,(ct_srcCount)
+    ld a,(geomNbInput)
     or a
     jp z,ct_return_empty
 
     dec a
     call ct_getSrcPoint
     call ct_loadPrevPoint
-    ld hl,(ct_prevX)
+    ld hl,(geomPreviousX)
     ld (ct_testX),hl
-    ld hl,(ct_prevY)
+    ld hl,(geomPreviousY)
     ld (ct_testY),hl
     call ct_isInside
     ld (ct_prevInside),a
 
     xor a
-    ld (ct_index),a
+    ld (geomIndex),a
 
 ct_vertex_loop:
-    ld a,(ct_index)
+    ld a,(geomIndex)
     ld b,a
-    ld a,(ct_srcCount)
+    ld a,(geomNbInput)
     cp b
     jp z,ct_pass_done
 
@@ -159,16 +165,16 @@ ct_vertex_loop:
     ld e,(hl)
     inc hl
     ld d,(hl)
-    ld (ct_currX),de
+    ld (geomCurrentX),de
     inc hl
     ld e,(hl)
     inc hl
     ld d,(hl)
-    ld (ct_currY),de
+    ld (geomCurrentY),de
 
-    ld hl,(ct_currX)
+    ld hl,(geomCurrentX)
     ld (ct_testX),hl
-    ld hl,(ct_currY)
+    ld hl,(geomCurrentY)
     ld (ct_testY),hl
     call ct_isInside
     ld (ct_currInside),a
@@ -196,15 +202,15 @@ ct_sameSide:
     call ct_appendPoint
 
 ct_updatePrev:
-    ld hl,(ct_currX)
-    ld (ct_prevX),hl
-    ld hl,(ct_currY)
-    ld (ct_prevY),hl
+    ld hl,(geomCurrentX)
+    ld (geomPreviousX),hl
+    ld hl,(geomCurrentY)
+    ld (geomPreviousY),hl
     ld a,(ct_currInside)
     ld (ct_prevInside),a
-    ld a,(ct_index)
+    ld a,(geomIndex)
     inc a
-    ld (ct_index),a
+    ld (geomIndex),a
     jp ct_vertex_loop
 
 ct_pass_done:
@@ -214,35 +220,35 @@ ct_pass_done:
     jp nz,ct_return_empty
 
     ld a,(ct_dstCount)
-    ld (ct_srcCount),a
+    ld (geomNbInput),a
     or a
     jp z,ct_return_empty
 
-    ld hl,(ct_src)
-    ld de,(ct_dst)
-    ld (ct_src),de
-    ld (ct_dst),hl
+    ld hl,(geomCurrentPtr)
+    ld de,(geomNextPtr)
+    ld (geomCurrentPtr),de
+    ld (geomNextPtr),hl
 
-    ld a,(ct_pass)
+    ld a,(geomStep)
     inc a
-    ld (ct_pass),a
+    ld (geomStep),a
     cp #4
     jp nz,ct_pass_loop
 
     ;; Copy the final cyclic point list to the caller's output buffer.
-    ld a,(ct_srcCount)
+    ld a,(geomNbInput)
     add a,a
     add a,a
     ld b,a
-    ld hl,(ct_src)
-    ld de,(ct_output)
+    ld hl,(geomCurrentPtr)
+    ld de,(geomOutputPtr)
 ct_copy_output:
     ld a,(hl)
     ld (de),a
     inc hl
     inc de
     djnz ct_copy_output
-    ld a,(ct_srcCount)
+    ld a,(geomNbInput)
     jp ct_return
 
 ct_return_empty:
@@ -256,7 +262,7 @@ ct_getSrcPoint::
     ld h,#0
     add hl,hl
     add hl,hl
-    ld de,(ct_src)
+    ld de,(geomCurrentPtr)
     add hl,de
     ret
 
@@ -266,7 +272,7 @@ ct_getDstPoint::
     ld h,#0
     add hl,hl
     add hl,hl
-    ld de,(ct_dst)
+    ld de,(geomNextPtr)
     add hl,de
     ret
 
@@ -274,17 +280,17 @@ ct_loadPrevPoint::
     ld e,(hl)
     inc hl
     ld d,(hl)
-    ld (ct_prevX),de
+    ld (geomPreviousX),de
     inc hl
     ld e,(hl)
     inc hl
     ld d,(hl)
-    ld (ct_prevY),de
+    ld (geomPreviousY),de
     ret
 
 ;; Returns A=1 when (ct_testX,ct_testY) is within the current inclusive edge.
 ct_isInside::
-    ld a,(ct_pass)
+    ld a,(geomStep)
     or a
     jr z,ct_insideLeft
     cp #1
@@ -333,9 +339,9 @@ ct_insideYes:
     ret
 
 ct_setAppendCurrent::
-    ld hl,(ct_currX)
+    ld hl,(geomCurrentX)
     ld (ct_appendX),hl
-    ld hl,(ct_currY)
+    ld hl,(geomCurrentY)
     ld (ct_appendY),hl
     ret
 
@@ -349,19 +355,19 @@ ct_appendPoint::
     ld e,(hl)
     inc hl
     ld d,(hl)
-    ld (ct_lastX),de
+    ld (geomX1),de
     inc hl
     ld e,(hl)
     inc hl
     ld d,(hl)
-    ld (ct_lastY),de
+    ld (geomY1),de
     ld hl,(ct_appendX)
-    ld de,(ct_lastX)
+    ld de,(geomX1)
     or a
     sbc hl,de
     jr nz,ct_appendCapacity
     ld hl,(ct_appendY)
-    ld de,(ct_lastY)
+    ld de,(geomY1)
     or a
     sbc hl,de
     ret z
@@ -395,16 +401,16 @@ ct_removeClosingDuplicate::
     cp #2
     ret c
 
-    ld hl,(ct_dst)
+    ld hl,(geomNextPtr)
     ld e,(hl)
     inc hl
     ld d,(hl)
-    ld (ct_firstX),de
+    ld (geomX0),de
     inc hl
     ld e,(hl)
     inc hl
     ld d,(hl)
-    ld (ct_firstY),de
+    ld (geomY0),de
 
     ld a,(ct_dstCount)
     dec a
@@ -412,19 +418,19 @@ ct_removeClosingDuplicate::
     ld e,(hl)
     inc hl
     ld d,(hl)
-    ld (ct_lastX),de
+    ld (geomX1),de
     inc hl
     ld e,(hl)
     inc hl
     ld d,(hl)
-    ld (ct_lastY),de
-    ld hl,(ct_firstX)
-    ld de,(ct_lastX)
+    ld (geomY1),de
+    ld hl,(geomX0)
+    ld de,(geomX1)
     or a
     sbc hl,de
     ret nz
-    ld hl,(ct_firstY)
-    ld de,(ct_lastY)
+    ld hl,(geomY0)
+    ld de,(geomY1)
     or a
     sbc hl,de
     ret nz
@@ -436,7 +442,7 @@ ct_removeClosingDuplicate::
 ;; Compute the crossing point for the active half-plane.
 ;; Uses cpct_clipLine's shared exact rounded multiply/divide helper.
 ct_intersection::
-    ld a,(ct_pass)
+    ld a,(geomStep)
     or a
     jr z,ct_intersectLeft
     cp #1
@@ -445,62 +451,62 @@ ct_intersection::
     jr z,ct_intersectTop
 
 ct_intersectBottom:
-    ld hl,(ct_prevY)
+    ld hl,(geomPreviousY)
     ld (ct_prevAxis),hl
-    ld hl,(ct_currY)
+    ld hl,(geomCurrentY)
     ld (ct_currAxis),hl
     ld hl,(clip_yend)
     dec hl
     ld (ct_boundary),hl
-    ld hl,(ct_prevX)
+    ld hl,(geomPreviousX)
     ld (ct_prevOther),hl
-    ld hl,(ct_currX)
+    ld hl,(geomCurrentX)
     ld (ct_currOther),hl
     xor a
     ld (ct_axisIsX),a
     jr ct_intersectionReady
 
 ct_intersectLeft:
-    ld hl,(ct_prevX)
+    ld hl,(geomPreviousX)
     ld (ct_prevAxis),hl
-    ld hl,(ct_currX)
+    ld hl,(geomCurrentX)
     ld (ct_currAxis),hl
     ld hl,(clip_xmin)
     ld (ct_boundary),hl
-    ld hl,(ct_prevY)
+    ld hl,(geomPreviousY)
     ld (ct_prevOther),hl
-    ld hl,(ct_currY)
+    ld hl,(geomCurrentY)
     ld (ct_currOther),hl
     ld a,#1
     ld (ct_axisIsX),a
     jr ct_intersectionReady
 
 ct_intersectRight:
-    ld hl,(ct_prevX)
+    ld hl,(geomPreviousX)
     ld (ct_prevAxis),hl
-    ld hl,(ct_currX)
+    ld hl,(geomCurrentX)
     ld (ct_currAxis),hl
     ld hl,(clip_xend)
     dec hl
     ld (ct_boundary),hl
-    ld hl,(ct_prevY)
+    ld hl,(geomPreviousY)
     ld (ct_prevOther),hl
-    ld hl,(ct_currY)
+    ld hl,(geomCurrentY)
     ld (ct_currOther),hl
     ld a,#1
     ld (ct_axisIsX),a
     jr ct_intersectionReady
 
 ct_intersectTop:
-    ld hl,(ct_prevY)
+    ld hl,(geomPreviousY)
     ld (ct_prevAxis),hl
-    ld hl,(ct_currY)
+    ld hl,(geomCurrentY)
     ld (ct_currAxis),hl
     ld hl,(clip_ymin)
     ld (ct_boundary),hl
-    ld hl,(ct_prevX)
+    ld hl,(geomPreviousX)
     ld (ct_prevOther),hl
-    ld hl,(ct_currX)
+    ld hl,(geomCurrentX)
     ld (ct_currOther),hl
     xor a
     ld (ct_axisIsX),a
@@ -560,37 +566,22 @@ ct_absHL::
     ret
 
 .area _DATA
-ct_input:             .ds 2
-ct_output:            .ds 2
-ct_src:               .ds 2
-ct_dst:               .ds 2
-ct_srcCount:          .ds 1
-ct_dstCount:          .ds 1
-ct_pass:              .ds 1
-ct_index:             .ds 1
-ct_prevInside:        .ds 1
-ct_currInside:        .ds 1
-ct_overflow:          .ds 1
-ct_prevX:             .ds 2
-ct_prevY:             .ds 2
-ct_currX:             .ds 2
-ct_currY:             .ds 2
-ct_testX:             .ds 2
-ct_testY:             .ds 2
-ct_appendX:           .ds 2
-ct_appendY:           .ds 2
-ct_lastX:             .ds 2
-ct_lastY:             .ds 2
-ct_firstX:            .ds 2
-ct_firstY:            .ds 2
-ct_prevAxis:          .ds 2
-ct_currAxis:          .ds 2
-ct_boundary:          .ds 2
-ct_prevOther:         .ds 2
-ct_currOther:         .ds 2
-ct_tD:                .ds 2
-ct_tE:                .ds 2
-ct_axisIsX:           .ds 1
-ct_intersectionOther: .ds 2
-ct_bufferA:           .ds 32
-ct_bufferB:           .ds 32
+ct_dstCount:          .ds 1  ;; Number of points in the destination list
+ct_prevInside:        .ds 1  ;; Inside status of the previous point
+ct_currInside:        .ds 1  ;; Inside status of the current point
+ct_overflow:          .ds 1  ;; Internal overflow status
+ct_testX:             .ds 2  ;; X coordinate used for a test
+ct_testY:             .ds 2  ;; Y coordinate used for a test
+ct_appendX:           .ds 2  ;; X coordinate of a point to append
+ct_appendY:           .ds 2  ;; Y coordinate of a point to append
+ct_prevAxis:          .ds 2  ;; Previous coordinate on the clipping axis
+ct_currAxis:          .ds 2  ;; Current coordinate on the clipping axis
+ct_boundary:          .ds 2  ;; Current clipping boundary coordinate
+ct_prevOther:         .ds 2  ;; Previous coordinate on the other axis
+ct_currOther:         .ds 2  ;; Current coordinate on the other axis
+ct_tD:                .ds 2  ;; Internal distance value
+ct_tE:                .ds 2  ;; Internal distance value
+ct_axisIsX:           .ds 1  ;; Axis selection status
+ct_intersectionOther: .ds 2  ;; Intersection coordinate on the other axis
+ct_bufferA:           .ds 32 ;; Point storage buffer - Used as source and destination alternatively
+ct_bufferB:           .ds 32 ;; Point storage buffer - Used as source and destination alternatively

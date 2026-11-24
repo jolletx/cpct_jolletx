@@ -15,23 +15,24 @@
 ;;  You should have received a copy of the GNU Lesser General Public License
 ;;  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ;;-------------------------------------------------------------------------------
-.module cpct_geometry
+.module cpct_bayeretry
 
 .globl _cpct_clipTriangle
 .globl _cpct_drawBayerPolygonM1
-.globl geom7PointBuffer
 
 .area _CODE
 
 ;; HL = signed triangle point list.
 _cpct_drawBayerClippedTriangleM1::
-    ld de,#geom7PointBuffer
+    ld de,#bayer7PointBuffer
     call _cpct_clipTriangle
     cp #3
     ret c
 
     ld e,a
     ld d,#0
-    ld hl,#geom7PointBuffer
+    ld hl,#bayer7PointBuffer
     call _cpct_drawBayerPolygonM1
     ret
+
+bayer7PointBuffer:: .ds 28 ;; Buffer with capacity for seven points

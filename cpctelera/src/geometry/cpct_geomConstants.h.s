@@ -45,3 +45,8 @@ YMax          =   199                 ;; Y max value for all modes
 ;; Shared values
 screenNbOctet =    79                 ;; Number of octets in a screen line (defautl CRTC mode)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; ScnFill stack size
+SF_STACK_SIZE = 30                    ;; Max number of elements in points stack
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
