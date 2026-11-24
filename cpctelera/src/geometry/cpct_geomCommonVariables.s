@@ -24,15 +24,16 @@
 
 geomStartScreen::  .ds 2  ;; Base address of screen memory
 
-geom7PointBuffer::        ;; Buffer with capacity for seven points
-geomX0::           .ds 2  ;; Specific access inside geom7PointBuffer for X0 
-geomY0::           .ds 2  ;; Specific access inside geom7PointBuffer for Y0 
-geomX1::           .ds 2  ;; Specific access inside geom7PointBuffer for X1
-geomY1::           .ds 2  ;; Specific access inside geom7PointBuffer for Y1 
-                   .ds 20 ;; Buffer with capacity for five points
+geom7PointBuffer:: .ds 28 ;; Buffer with capacity for seven points
 
-geomCurrentY::     .ds 1  ;; Current vertical coordinate
+geomX0::           .ds 2  ;; An horizontal coordinate 
+geomY0::           .ds 2  ;; A vertical coordinate 
+geomX1::           .ds 2  ;; An horizontal coordinate
+geomY1::           .ds 2  ;; A vertical coordinate 
 geomCurrentX::     .ds 2  ;; Current horizontal coordinate
+geomCurrentY::     .ds 2  ;; Current vertical coordinate
+geomNextX::        .ds 2  ;; Next horizontal coordinate
+geomNextY::        .ds 2  ;; Next vertical coordinate
 geomDeltaX::       .ds 2  ;; Horizontal coordinate difference
 geomDeltaY::       .ds 2  ;; Vertical coordinate difference
 
