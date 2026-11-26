@@ -29,4 +29,4 @@
 
 ;; Internal global data fort bayer draw API
 bayer_intensityPtr:: .ds  2             ;; (2) Pointer to sub line 0 of current intensity 
-bayer_screenY::      .ds  2             ;; Screen adress of current line (Helper and direct access)
+bayer_screenY::      .ds  2             ;; (2) Screen adress of current line (Helper and direct access)

@@ -33,11 +33,7 @@ extern void cpct_setBayerMatrixM1(u8* vmem, u16 intensity, u8 pen1, u8 pen2 ) __
 
 // Draw routines
 extern void cpct_drawBayerBoxM1 (u16 x0, u16 x1, u8 y0,  u8 y1) __z88dk_callee;
-// Clip a signed triangle against cpct_setClipRect's bounds, then fill it.
-// Input coordinates must satisfy cpct_clipTriangle's [-16384,16383] range.
 extern void cpct_drawBayerClippedTriangleM1 (const i16 *PtArray);
-// Draw 3 or more ordered convex vertices, each as an (x, y) u16 pair inside Mode 1.
-// Register ABI: HL = PtArray, E = numPoints.
 extern void cpct_drawBayerPolygonM1 (u16 *PtArray, u16 numPoints) __sdcccall(1);
 
 #endif

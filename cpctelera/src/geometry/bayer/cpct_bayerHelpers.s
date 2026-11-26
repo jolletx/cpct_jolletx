@@ -28,26 +28,61 @@
 .include "macros/cpct_undocumentedOpcodes.h.s"
 
 ;;-------------------------------------------------------------------------------
-;;  Common methods for Bayer drawing APIs
-;;
+;; Common methods for Bayer drawing APIs
 ;;-------------------------------------------------------------------------------
+;;
+;; Global size
+;;    399 octets (+ 4 bytes common bayer variables + 52 common geometric variables)
+;;
+
+;;-------------------------------------------------------------------------------
+;; Function: <cpct_bayerPrepareBoxLine_asm>
+;;-------------------------------------------------------------------------------
+;;
+;;    Prepare the repeated-octet target for drawBayerBox.
+;;
+;;   Input:
+;;     IXL = Left subpixel
+;;     IYL = NbOctet
+;; 
+;;   Modifies AF, BC, Preserves HL, DE, IX, and IY
+;;    
+;; Timings
+;;     39 NOPS max
+cpct_bayerPrepareBoxLine_asm::
+    push    hl                                  ;; [4] preserve HL
+    ld__a_iyl                                   ;; [2] A = NbOctet
+    or      a                                   ;; [1] Check with 0
+    jr      z,bh_boxRepeatCountReady            ;; [2/3] if a == 0 Norepeat
+    ld__a_ixl                                   ;; [2] A = left subpixel
+    or      a                                   ;; [1] Check with 0
+    ld__a_iyl                                   ;; [2] Reset A to NbOctet before jump
+    jr      z,bh_boxRepeatCountReady            ;; [2/3] if subpixel == 0 
+    dec     a                                   ;; [1] Decrease NbOctet to perform because first octet is partial
+bh_boxRepeatCountReady:
+    add     a,a                                 ;; [1] A = a x 2 (ld (hl),d / inc hl)
+    ld      b,#0                                ;; [2] B = 0
+    ld      c,a                                 ;; [1] BC = NbOctet to repeat * 2
+    ld      hl,#bh_lastOctet                    ;; [3] Init hl to first adress after the macro repeat
+    sbc     hl,bc                               ;; [4] Move backward from bh_lastOctet
+    ld      (bh_jmpBlock),hl                    ;; [5] (SMC) Set the fixed box repeat target 
+    pop     hl                                  ;; [3] Retrieve input HL
+    ret                                         ;; [3] return
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-;; Function: cpct_drawBayerLineFast_asm
+;; Function: cpct_bayerDrawHLineM1_worker_asm
 ;;
 ;;    Draw an horizontal line on screen using bayer dithering.
-;;    
 ;;
 ;; Inputs:
-;;    HL = screen octet of left point
-;;    C = bayer subline (0..3)
-;;    IXL = Left subpixel (0..3) (preserved)
-;;    IXH = Right subpixel (0..3)
-;;    IYL = NbOctet between left point and right point
-;;    Preserved : IXL,IXH,IYL
-;;    Modified : HL (screen octet of right point)
+;;    BC = Screen adress of the current row getScreenPtr (0 , Y)
+;;    A = Current Y row (0..199) to compute Bayer subLine
+;;    HL = X0 (0..319)
+;;    DE = X1 (0..319)
+;;
+;; Modifies all registers even IX / IY
 ;;
 ;; Details:
 ;;    Draw a line using a Bayer dithering set by <cpct_setBayerMatrixM1>.
@@ -55,34 +90,26 @@
 ;;    Uses self-modifying code: not suitable for ROMs or reentrant use.
 ;; 
 ;; Destroyed Register values:
-;;    AF, BC, DE, HL
+;;    AF, BC, DE, HL (output = screen adress of last point + 1) , IX, IY
 ;;
 ;; Required memory:
 ;;    (+36 bytes for cpct_subPixelHorizontalMask_M1)
 ;;    (+94 bytes for bayer internal data)
 ;;
-;; Time Measures: (does not include 35 us call to cpct_getScreenPtr_asm)
+;; Time Measures:
 ;; (start code)
 ;;    Case / Coordinates                       | Pixels | microSecs (us) | CPU Cycles
 ;;   ---------------------------------------------------------------------------------
-;;    Box x0=0 x1=100 y0=0 y1=4                | 505    | ~1321          | ~
-;;    Box x0=0 x1=319 y0=0 y1=199              | 101    | ~94375         | ~
+;;    Line x0=3 x1=102 y0=3                    | 100    | ~xxxx          | ~xxxx
+;;    Line x0=0 x1=319 y0=4                    | 320    | ~xxxx          | ~xxxx
 ;;   ---------------------------------------------------------------------------------
 ;; (end code)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-cpct_bayerDrawHLineM1_asm::
-    push    ix
-    push    iy
-    call    cpct_bayerDrawHLineM1_worker_asm
-    pop     iy
-    pop     ix
-    ret
 
-;; Internal worker for callers that already preserve IX/IY.
-cpct_bayerDrawHLineM1_worker_asm::
-    push    bc                                  ;; Preserve screen start
+cpct_bayerDrawHLineM1_asm::
+    push    bc                                  ;; [4] Preserve screen start
     and     #0x03                               ;; [2] A = bayer subLine  - Resets Carry flag
-    ld      c,a                                 ;; C = Bayer subline
+    ld      c,a                                 ;; [1] C = Bayer subline
     push    hl                                  ;; [4] Save x0
     sbc     hl,de                               ;; [4] HL = x0 - X1
     pop     hl                                  ;; [3] Retrieve x0
@@ -92,7 +119,7 @@ bh_noXExx:
     ; Right octet / subpixel
     ld      a,e                                 ;; [1] a = LSB X1
     and     #0x03                               ;; [2] a = subpixel x1
-    ld__ixh_a                                   ;; [4] IXH = Left subpixel
+    ld__ixh_a                                   ;; [2] IXH = Right subpixel
     sra     d                                   ;; [2] divide X1 by 4 - first msb
     rr      e                                   ;; [2] then lsb according to carry
     srl     e                                   ;; [2] e = X right offset on screen
@@ -100,7 +127,8 @@ bh_noXExx:
     ; Left octet/subpixel
     ld      a,l                                 ;; [1] a = LSB X0
     and     #0x03                               ;; [2] a = subpixel x0
-    ld__ixl_a                                   ;; [4] IXL = Left subpixel
+    ld__ixl_a                                   ;; [2] IXL = Left subpixel
+    ld__iyh_a                                   ;; [2] Keep IXL constant; track the active left subpixel in IYH
     sra     h                                   ;; [2] divide X0 by 4 - first msb
     rr      l                                   ;; [2] then lsb according to carry
     srl     l                                   ;; [2] l = X offset on screen
@@ -108,122 +136,76 @@ bh_noXExx:
     ; NbOctets to draw
     ld      a,e                                 ;; [1] a = e = X Right offset
     sub     l                                   ;; [1] a = a - X Left offset = XRO - XLO = nbOctets
-    ld__iyl_a                                   ;; IYL = NbOCtets
+    ld__iyl_a                                   ;; [2] IYL = NbOCtets
     ; Left Screen adress
-    pop     de                                  ;; Retrieve screen Y Adress
-    add     hl,de                               ;; hl = XLO + screen adress 
-    call    cpct_drawBayerLineFast_asm
-    ret
-
-
-;; Prepare the repeated-octet target for a fixed box span.
-;;    IXL = Left subpixel
-;;    IYL = NbOctet
-;; Clobbers AF, BC; preserves HL, DE, IX, and IY.
-cpct_bayerPrepareBoxLine_asm::
-    push    hl
-    ld__a_iyl
-    or      a
-    jr      z,bh_boxNoRepeat
-    ld__a_ixl
-    or      a
-    ld__a_iyl
-    jr      z,bh_boxRepeatCountReady
-    ld__a_iyl
-    dec     a
-    jr      bh_boxRepeatCountReady
-bh_boxNoRepeat:
-    xor     a
-bh_boxRepeatCountReady:
-    add     a,a
-    ld      b,#0
-    ld      c,a
-    ld      hl,#bh_lastOctet
-    or      a                                   ;; Clear carry before subtracting the repeat length
-    sbc     hl,bc
-    ld      (bh_jmpBlock),hl                    ;; (SMC) Cache the fixed box repeat target
-    pop     hl
-    ret
-
-;; Inputs:
-;;    HL = screen octet of left point
-;;    C = bayer subline
-;;    IXL = Left subpixel (preserved)
-;;    IXH = Right subpixel
-;;    IYL = NbOctet (preserved)
-;;    IYH = Current left subpixel during drawing
-;; Clobbers AF, BC, DE, HL, IYH.
-cpct_drawBayerLineFast_asm::
-    ld__a_ixl
-    ld__iyh_a                                   ;; Keep IXL constant; track the active left subpixel in IYH
+    pop     de                                  ;; [3] Retrieve screen Y Adress
+    add     hl,de                               ;; [3] hl = XLO + screen adress 
 
     ; Retrieve bayer octet
     ex      de,hl                               ;; [1] Preserve hl=screenAdress in de
     ld      hl,(bayer_intensityPtr)             ;; [5] Get current intensity adress 
-    ld      a,c                                 ;; [2] A = Bayer subline 
-    or      l                                   ;; [1] Add subline to pointer
+    ld      a,c                                 ;; [1] A = Bayer subline (0..3)
+    or      l                                   ;; [1] Add subline to pointer (LUT is aligned to 4 Bytes)
     ld      l,a                                 ;; [1] HL = Adress of subline for this intensity
     ld      a,(hl)                              ;; [2] A = Intensity Octect of subLine
     ex      de,hl                               ;; [1] Retrieve hl = screenAdress - e = nbOctet
     ld      d,a                                 ;; [1] D = Intensity octet of subline
 
     ;; check if line is on same octet
-    ld__a_iyl                                   ;; [1] E = nbOctet
+    ld__a_iyl                                   ;; [2] E = nbOctet
     or      a                                   ;; [1] nbOctet == 0 ?
     jp      z,#bh_lastOctet                     ;; [3] yes : we are on last octet
     ;; Check if left subpixel is 0, so we can use full repetition size
-    ld__a_iyh                                   ;; [4] A = left subpixel
+    ld__a_iyh                                   ;; [2] A = left subpixel copy
     or      a                                   ;; [1] == 0 ?
     jr      z,#bh_setRepeat                     ;; [2/3] yes, can use full octet
     ;; Deal wih first octet from subpixel a to subpixel 3
     ld      c,#3                                ;; [2] c= right Subpixel 3 (a = left subpixel)
     call    b_setScreenOctetFromSubpixels       ;; [5] set screen octet from subpixel a to 3
-    xor     a                                   ;; a = 0
-    ld__iyh_a                                   ;; Set left subpixel to 0 for last octet
-    ld__a_iyl
-    dec     a                                   ;; Exclude the first octet without changing IYL
-    jr      bh_setRepeatCount
-bh_setRepeat::
-    ld__a_iyl
+    xor     a                                   ;; [1] a = 0
+    ld__iyh_a                                   ;; [2] Set left subpixel to 0 for last octet
+    ld__a_iyl                                   ;; [2] A = NbOctet
+    dec     a                                   ;; [1] Exclude the first octet without changing IYL
+    jr      bh_setRepeatCount                   ;; [3] Jump over next line
+bh_setRepeat:
+    ld__a_iyl                                   ;; [2] A = NbOctet without modifications
 bh_setRepeatCount:
     push    hl                                  ;; [4] preserve screen adress
     add     a,a                                 ;; [1] A = repeat count * 2 bytes
     ld      b,#0                                ;; [2] b = 0
     ld      c,a                                 ;; [1] BC = nbOctet * 2
     ld      hl,#bh_lastOctet                    ;; [3] End of the repeated-octet block
-    or      a                                   ;; Clear carry before subtracting the repeat length
+    or      a                                   ;; [1] Clear carry before subtracting the repeat length
     sbc     hl,bc                               ;; [4] Decrease pointer to nb octet to set
     ld      (bh_jmpBlock),hl                    ;; [5] (SMC) modify jump access
     pop     hl                                  ;; [3] retrieve screen adress
-    jr      bh_jumpRepeat
+    jr      bh_jumpRepeat                       ;; [3] Jumps over specific Box Access 
 
 ;; Box-only draw path; cpct_bayerPrepareBoxLine_asm must be called first.
 cpct_drawBayerLineFastBox_asm::
-    ld__a_ixl
-    ld__iyh_a                                   ;; Reinitialize the left subpixel for this row
+    ld__a_ixl                                   ;; [2] A = Left Subpixel
+    ld__iyh_a                                   ;; [2] Copy into IYH for possible modification
 
     ; Retrieve bayer octet
-    ex      de,hl
-    ld      hl,(bayer_intensityPtr)
-    ld      a,c
-    or      l
-    ld      l,a
-    ld      a,(hl)
-    ex      de,hl
-    ld      d,a
+    ex      de,hl                               ;; [1] Preserve hl=screenAdress in de
+    ld      hl,(bayer_intensityPtr)             ;; [5] Get current intensity adress 
+    ld      a,c                                 ;; [1] A = Bayer subline (0..3)
+    or      l                                   ;; [1] Add subline to pointer (LUT is aligned to 4 Bytes)
+    ld      l,a                                 ;; [1] HL = Adress of subline for this intensity
+    ld      a,(hl)                              ;; [2] A = Intensity Octect of subLine
+    ex      de,hl                               ;; [1] Retrieve hl = screenAdress - e = nbOctet
+    ld      d,a                                 ;; [1] D = Intensity octet of subline
 
-    ld__a_iyl
-    or      a
-    jp      z,#bh_lastOctet
-    ld__a_iyh
-    or      a
-    jr      z,bh_boxSetRepeat
-    ld      c,#3
-    call    b_setScreenOctetFromSubpixels
-    xor     a
-    ld__iyh_a
-bh_boxSetRepeat:
-    jr      bh_jumpRepeat
+    ld__a_iyl                                   ;; [2] A = NbOctet
+    or      a                                   ;; [1] Check == 0 ?
+    jp      z,#bh_lastOctet                     ;; [3] Yes, we already are on last octet
+    ld__a_iyh                                   ;; [2] A = Left Subpixel
+    or      a                                   ;; [1] Check == 0 ?
+    jr      z,bh_jumpRepeat                     ;; [2/3] If left subpixel is first one, we can repeat NbOctet directly
+    ld      c,#3                                ;; [2] Set right subpixel = 3 (last)
+    call    b_setScreenOctetFromSubpixels       ;; [5] Modify first octet from Left subpixel to last
+    xor     a                                   ;; [1] A = 0
+    ld__iyh_a                                   ;; [2] Set Left subpixel to 0 for last octet
 
 bh_jumpRepeat:
 bh_jmpBlock=. + 1
@@ -232,90 +214,111 @@ bh_jmpBlock=. + 1
     ld      (hl),d                              ;; [2] Set screen octet to current intensity full octet
     inc     hl                                  ;; [2] Increase screen adress
     .endm
-bh_lastOctet::
-    ld__c_ixh                                   ;; C = rightsubpixel
-    ld__a_iyh                                   ;; A = current left subpixel (either input or 0)
+bh_lastOctet:
+    ld__c_ixh                                   ;; [2] C = rightsubpixel
+    ld__a_iyh                                   ;; [2] A = current left subpixel (either input or 0)
 
 ;; Set an octet subpixels from a to c with color in d
 b_setScreenOctetFromSubpixels:                  
-    push  hl                                    ;; [4] Preserve hl = screen adress
-    ld    b,#0                                  ;; [2] reset b
-    add   a,a                                   ;; [1] a = lsp*2
-    add   a,a                                   ;; [1] a = lsp*4
-    add   a,c                                   ;; [1] a = lsp*4 + rsp
-    ld    c,a                                   ;; [1] bc = index in table
-    ld    hl, #cpct_subPixelHorizontalMask_M1   ;; [3] mask table
-    add   hl,bc                                 ;; [3] hl = adress of mask to use
-    ld    a,(hl)                                ;; [2] a = mask to use for reset pixels with new color
-    pop   hl                                    ;; [3] Restore adress
+    push    hl                                  ;; [4] Preserve hl = screen adress
+    ld      b,#0                                ;; [2] reset b
+    add     a,a                                 ;; [1] a = lsp*2
+    add     a,a                                 ;; [1] a = lsp*4
+    add     a,c                                 ;; [1] a = lsp*4 + rsp
+    ld      c,a                                 ;; [1] bc = index in table
+    ld      hl, #cpct_subPixelHorizontalMask_M1 ;; [3] mask table
+    add     hl,bc                               ;; [3] hl = adress of mask to use
+    ld      a,(hl)                              ;; [2] a = mask to use for reset pixels with new color
+    pop     hl                                  ;; [3] Restore adress
 ;; Use mask on screen octet
-    ld    c,a                                   ;; [1] save mask
-    and   (hl)                                  ;; [2] a = current screen pixels with clear pixels from mask
-    ld    b,a                                   ;; [1] b = current screen octet (cleared from left subpixel to subpixel 3)
-    ld    a,c                                   ;; [1] retrieve mask
+    ld      c,a                                 ;; [1] save mask
+    and     (hl)                                ;; [2] a = current screen pixels with clear pixels from mask
+    ld      b,a                                 ;; [1] b = current screen octet (cleared from left subpixel to subpixel 3)
+    ld      a,c                                 ;; [1] retrieve mask
     cpl                                         ;; [1] invert mask
-    and   d                                     ;; [1] set requested color to inverted pixelsmask
-    or    b                                     ;; [1] merge result with current screen octet
-    ld    (hl),a                                ;; [2] Set screen octet
-    inc   hl                                    ;; [2] Next screen octet
+    and     d                                   ;; [1] set requested color to inverted pixelsmask
+    or      b                                   ;; [1] merge result with current screen octet
+    ld      (hl),a                              ;; [2] Set screen octet
+    inc     hl                                  ;; [2] Next screen octet
     ret                                         ;; [3] return
 
-;; Clips X value to 0 if < 0 and to 319 if >319
-;; A BC DE modified - Output HL = X vlaue to use
-cpct_clipX::                              ;; Clamp signed HL to the horizontal screen range.
-    ld de,#0                        ;; Set the lower bound.
-    call cpct_compareSigned16       ;; Compare X with zero.
-    jr nc,clipX_upper               ;; Check the upper bound when X is nonnegative.
-    ld hl,#0                        ;; Replace negative X with the left edge.
-    ret                             ;; Return the clipped coordinate.
-clipX_upper:                        ;; X is nonnegative; check the right edge.
-    ld de,#319                      ;; Set the maximum visible X coordinate.
-    call cpct_compareSigned16       ;; Compare X with 319.
-    jr c,clipX_done                 ;; Keep X when it is below 319.
-    jr z,clipX_done                 ;; Keep X when it equals the inclusive boundary.
-    ld hl,#319                      ;; Clamp X above 319 to the right edge.
-clipX_done:                         ;; HL contains the clipped coordinate.
-    ret                             ;; Return the clipped coordinate.
 
+;;-------------------------------------------------------------------------------
+;; Function: <cpct_compareSigned16_asm>
+;;-------------------------------------------------------------------------------
+;;
+;;    Do the comparison of 2 signed 16 bit values.
+;;    Returns normal 8 bit comparison flag values.
+;;
+;;   Input:
+;;    HL = Input value
+;;    DE = Comparison value
+;;   
+;;   Output
+;;    F Flags
+;;    
+;;   Modifies A BC - Preserve HL DE
+;;    
+;; Timings
+;;     17 NOPS max
 
 ;; Compare signed 16-bit HL with signed 16-bit DE; carry means HL < DE. z means HL == DE
-;; A BC modified - HL DE preserved
-cpct_compareSigned16::                  ;; Shared signed-coordinate comparison helper.
-    ld a,h                         ;; Load HL's high byte.
-    xor #0x80                      ;; Bias its sign bit for unsigned ordering.
-    ld b,a                         ;; Save the biased high byte of HL.
-    ld a,d                         ;; Load DE's high byte.
-    xor #0x80                      ;; Bias its sign bit for unsigned ordering.
-    ld c,a                         ;; Save the biased high byte of DE.
-    ld a,b                         ;; Compare the biased high bytes first.
-    cp c                           ;; Set carry/zero flags for the high-byte order.
-    ret nz                         ;; Return when the high bytes differ.
-    ld a,l                         ;; High bytes match; load HL's low byte.
-    cp e                           ;; Compare low bytes as unsigned values.
-    ret                            ;; Return carry/zero flags for the full comparison.
-
-; HL = TopY
-; All registers modified
-cpct_compScreenLine::
-    ld      de,(geomStartScreen)       ;; Get stored start screen
-    ; check if TopY is < 0 
-    ld      a,h                         ;; a = MSB of TopY
-    rlca                                ;; put msb to Carry
-    jr      c,b_storeYScreen            ;; if TopY < 0, use Y=0 so start screen
-    ld      b,l                         ;; b = Y = lsb of TopY ( < 199 is already checked)
-    ld      c,#0                        ;; c = X = 0
-    call    cpct_getScreenPtr_asm       ;; compute HL = Y screen adress of 0/TopY 
-    ex      de,hl                       ;; DE = screen adress 
-b_storeYScreen:
-    ld      (bayer_screenY),de
-    ret
+cpct_compareSigned16_asm::                      ;; Shared signed-coordinate comparison helper.
+    ld      a,h                                 ;; [1] Load HL's high byte.
+    xor     #0x80                               ;; [2] Bias its sign bit for unsigned ordering.
+    ld      b,a                                 ;; [1] Save the biased high byte of HL.
+    ld      a,d                                 ;; [1] Load DE's high byte.
+    xor     #0x80                               ;; [2] Bias its sign bit for unsigned ordering.
+    ld      c,a                                 ;; [1] Save the biased high byte of DE.
+    ld      a,b                                 ;; [1] Compare the biased high bytes first.
+    cp      c                                   ;; [1] Set carry/zero flags for the high-byte order.
+    ret     nz                                  ;; [2/4] Return when the high bytes differ.
+    ld      a,l                                 ;; [1] High bytes match; load HL's low byte.
+    cp      e                                   ;; [1] Compare low bytes as unsigned values.
+    ret                                         ;; [3] Return carry/zero flags for the full comparison.
 
 
-; Input A = Current Y value
-; A HL BC modified
-cpct_incScreenLine::
-    ld      hl,(bayer_screenY)                      ;; HL = screen Y Adress
-    inc     a                                   ;; [1] a = y0 + 1
+;;-------------------------------------------------------------------------------
+;; Function: <cpct_compScreenLine_asm>
+;;-------------------------------------------------------------------------------
+;;
+;;    Retrieve the screen adress of a unsigned row value based on geomStartScreen.
+;;    Uses X=0 to compute it
+;;
+;;   Input:
+;;    B = Y row (unsigned value)
+;;   
+;;   Output
+;;    (bayer_screenY) and HL = Screen adress of row if Y >=0, start screen adress if Y<0
+;;    
+;;    Modified AF BC DE 
+;;    
+;; Timings
+;;     21 NOP (+ call to cpct_getScreenPtr_asm 37 NOP)
+
+cpct_compScreenLine_asm::
+    ld      de,(geomStartScreen)                ;; [6] Get stored start screen
+    ld      c,#0                                ;; [2] c = X = 0
+    call    cpct_getScreenPtr_asm               ;; [5] compute HL = Y screen adress of B = Row 
+    ld      (bayer_screenY),hl                  ;; [6] Stores the Adress in internal bayer variable
+    ret                                         ;; [3] return
+
+;;-------------------------------------------------------------------------------
+;; Function: <cpct_incScreenLine_asm>
+;;-------------------------------------------------------------------------------
+;;
+;;    Increases the screen adress line stored in bayer_screenY into next one.
+;;
+;;   Input:
+;;    A = Y + 1 value
+;;    
+;;    Modified AF HL BC 
+;;    
+;; Timings
+;;     31 NOPS max
+
+cpct_incScreenLine_asm::
+    ld      hl,(bayer_screenY)                  ;; [5] HL = screen Y Adress
     and     #7                                  ;; [2] check if Y+1 is on a new char line
     jr      z,bt_adjustHL                       ;; [2/3] if yes, adjust HL 
     ld      a,h                                 ;; [1] a = MSB screen adress
@@ -326,5 +329,5 @@ bt_adjustHL:
     ld      bc,#0xc850                          ;; [3] Set bc = 0x800 - 0x4000 + 0x50  to move from char line 7 to char line 0 of next char line
     add     hl,bc                               ;; [3] Adjust hl to next line
 bt_setNewAdress:
-    ld      (bayer_screenY),hl                      ;; Store HL = screen Y+1 Adress
+    ld      (bayer_screenY),hl                  ;; [5] Store HL = screen Y+1 Adress
     ret                                         ;; [3] Return

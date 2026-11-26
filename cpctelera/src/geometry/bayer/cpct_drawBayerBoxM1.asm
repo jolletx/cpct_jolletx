@@ -66,10 +66,10 @@
 
     ;; HL = X0, DE = X1 C = y0 B = Y1 
     ;; Check which is min / max
-    push    ix                                  ;; Preserve IX/IY for Fast line inputs
-    push    iy
+    push    ix                                  ;; [5] Preserve IX/IY for Fast line inputs
+    push    iy                                  ;; [5]
     push    hl                                  ;; [4] Save x0
-    or      a                                   ;; Clear carry before comparing endpoints
+    or      a                                   ;; [1] Clear carry before comparing endpoints
     sbc     hl,de                               ;; [4] HL = x0 - X1
     pop     hl                                  ;; [3] Retrieve x0
     jr      c,#bb_noXExx                        ;; [2/3] if x1 > x0 no exchange
@@ -89,14 +89,14 @@ bb_noYExx:
     ;; Compute right octet and subpixel
     ld      a,e                                 ;; [1] a = LSB X1
     and     #0x03                               ;; [2] a = subpixel x1
-    ld__ixh_a                                   ;; IXH = right subpixel
+    ld__ixh_a                                   ;; [2] IXH = right subpixel
     sra     d                                   ;; [2] divide X1 by 4 - first msb
     rr      e                                   ;; [2] then lsb according to carry
     srl     e                                   ;; [2] e = X right offset on screen
     ;; Compute HL octet and subpixel
     ld      a,l                                 ;; [1] a = LSB X0
     and     #0x03                               ;; [2] a = subpixel x0
-    ld__ixl_a                                   ;; IXL = left subpixel
+    ld__ixl_a                                   ;; [2] IXL = left subpixel
     sra     h                                   ;; [2] divide X0 by 4 - first msb
     rr      l                                   ;; [2] then lsb according to carry
     srl     l                                   ;; [2] l = X offset on screen
@@ -104,7 +104,7 @@ bb_noYExx:
     ;; Compute and prepare internals
     ld      a,e                                 ;; [1] a = X Right offset
     sub     l                                   ;; [1] a = XRO - XLO = nbOctets
-    ld__iyl_a                                   ;; IYL = octet difference
+    ld__iyl_a                                   ;; [2] IYL = octet difference
     ld      a,b                                 ;; [1] a = Y1
     sub     c                                   ;; [1] a = Y1-Y0 = nbLines
     ld      (bayer_nbLines),a                   ;; [4] Stores number of line to draw
@@ -114,20 +114,20 @@ bb_noYExx:
     ld      c,l                                 ;; [1] C = XLeft offset
     ld      de,(geomStartScreen)                ;; [6] de = screen adress start
     call    cpct_getScreenPtr_asm               ;; [5] Output HL = screen start of X0,Y0
-    call    cpct_bayerPrepareBoxLine_asm        ;; Set the fixed-width repeat target once
+
+    call    cpct_bayerPrepareBoxLine_asm        ;; [5] Set the fixed-width repeat target once
 
     ;; Algo
-
-bb_lineLoop::
+bb_lineLoop:
     ;; Draw line from left to right
 bayer_y0=. + 1
-    ld      a,#0                                ;; (SMC) A = current Y
-    and     #0x03                               ;; A = Bayer subline
-    ld      c,a                                 ;; C = Bayer subline
+    ld      a,#0                                ;; [2] (SMC) A = current Y
+    and     #0x03                               ;; [2] A = Bayer subline
+    ld      c,a                                 ;; [1] C = Bayer subline
 
-    push    hl                                  ;; Preserve start of line address
-    call    cpct_drawBayerLineFastBox_asm
-    pop     hl                                  ;; Retrieve X0 left screen address
+    push    hl                                  ;; [4] Preserve start of line address
+    call    cpct_drawBayerLineFastBox_asm       ;; [5] Launch fast access drawLine (without jump block computation)
+    pop     hl                                  ;; [3] Retrieve X0 left screen address
 
     ;; deal with line loop  
 bayer_nbLines=. + 1
@@ -146,12 +146,12 @@ bayer_nbLines=. + 1
     add     a,#8                                ;; [2] a = a + 8 - Move to next line
     ld      h,a                                 ;; [1] HL = HL + 0x800
     jp      bb_lineLoop                         ;; [3] Loop to next line
-bb_adjustHL::
+bb_adjustHL:
     ld      bc,#0xc850                          ;; [3] Set bc = 0x800 - 0x4000 + 0x50  to move from char line 7 to char line 0 of next char line
     add     hl,bc                               ;; [3] Adjust hl to next line
     jp      bb_lineLoop                         ;; [3] Loop to next line
 
-bb_endBayerBox::
-    pop     iy                                  ;; Restore caller's IY
-    pop     ix                                  ;; Restore caller's IX
+bb_endBayerBox:
+    pop     iy                                  ;; [5] Restore caller's IY
+    pop     ix                                  ;; [5] Restore caller's IX
     ret                                         ;; [3] End of drawBayerBoxM1 
