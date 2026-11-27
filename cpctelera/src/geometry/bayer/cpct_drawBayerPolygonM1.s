@@ -38,36 +38,63 @@
 .globl geomError
 .globl geomThreshold
 
-.area _CODE
-
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; Function: cpct_drawBayerPolygonM1_asm
+;;
 ;; Draw an ordered convex list of on-screen (u16 x, u16 y) points.
-;; HL = point list, E = byte-sized point count.
+;;    
+;;
+;; C Definition:
+;;    void <cpct_drawBayerPolygonM1>(const u16 *PtArray, u16 nbPoints);
+;;
+;; Input Parameters:
+;;    (2B HL)     PtArray - Adress of 3 i16 Points defining a triangle to draw
+;;    (2B DE)     nbPoints - Only E (low byte) is used
+;;
+;; Details:
+;;   1. Reject polygons with less than three vertices.
+;;   2. Preserve the input pointer and vertex count in the geometry workspace.
+;;   3. Scan every vertex to find geomTopY, geomBottomY,  topIndex, topMinX,
+;;      and topMaxX.
+;;   4. Select geomTopY as the initial scanline and position it in the Bayer
+;;      screen-line lookup.
+;;   5. Draw the topmost horizontal interval from topMinX through topMaxX.
+;;   6. If the top and bottom rows are the same, terminate; otherwise initialize
+;;      one forward edge and one reverse-order edge.
+;;   7. Advance both initialized edges once to place their X coordinates on the
+;;      row immediately below the topmost row.
+;;   8. Set geomCurrentY to that first row below the top row.
+;;   9. At the start of each row, replace either chain edge that has reached its
+;;      end by the next non-horizontal polygon edge.
+;;   10. Copy the forward-edge X coordinate into spanX0 and the backward-edge X
+;;       coordinate into spanX1.
+;;   11. Draw the current horizontal span, including the Bayer row correction.
+;;   12. If geomCurrentY is geomBottomY, terminate without advancing further.
+;;   13. Advance every active edge from the current row to the next row.
+;;   14. Increment geomCurrentY and repeat from step 9.
+;;   15. Restore IX/IY and return when the row loop or the initial validation
+;;       exits.
+;; 
+;; Destroyed Register values:
+;;    AF, BC, DE, HL
+;;
+;; Required memory:
+;;
+;;
+;; Time Measures: (does not include 35 us call to cpct_getScreenPtr_asm)
+;; (start code)
+;;    Case / Coordinates                       | Pixels | microSecs (us) | CPU Cycles
+;;   ---------------------------------------------------------------------------------
+;;    Box x0=0 x1=319 y0=0 y1=199              | 101    | ~94375         | ~
+;;   ---------------------------------------------------------------------------------
+;; (end code)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; Algorithm:
-;; 1. Reject polygons with fewer than three vertices.
-;; 2. Preserve the input pointer and vertex count in the geometry workspace.
-;; 3. Scan every vertex to find geomTopY, geomBottomY, topIndex, topMinX,
-;;    and topMaxX.
-;; 4. Select geomTopY as the initial scanline and position it in the Bayer
-;;    screen-line lookup.
-;; 5. Draw the topmost horizontal interval from topMinX through topMaxX.
-;; 6. If the top and bottom rows are the same, terminate; otherwise initialize
-;;    one forward edge and one reverse-order edge.
-;; 7. Advance both initialized edges once to place their X coordinates on the
-;;    row immediately below the topmost row.
-;; 8. Set geomCurrentY to that first row below the top row.
-;; 9. At the start of each row, replace either chain edge that has reached its
-;;    end by the next non-horizontal polygon edge.
-;; 10. Copy the forward-edge X coordinate into spanX0 and the backward-edge X
-;;     coordinate into spanX1.
-;; 11. Draw the current horizontal span, including the Bayer row correction.
-;; 12. If geomCurrentY is geomBottomY, terminate without advancing further.
-;; 13. Advance every active edge from the current row to the next row.
-;; 14. Increment geomCurrentY and repeat from step 9.
-;; 15. Restore IX/IY and return when the row loop or the initial validation
-;;     exits.
 
+.area _CODE
 _cpct_drawBayerPolygonM1::
+cpct_drawBayerPolygonM1_asm::
     push    ix                                  ;; [5] Preserve caller IX.
     push    iy                                  ;; [5] Preserve caller IY.
 

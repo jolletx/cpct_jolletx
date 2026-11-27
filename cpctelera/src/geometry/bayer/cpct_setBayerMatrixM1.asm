@@ -77,9 +77,6 @@
 .globl      bayer_fullColorBytes
 .globl      geomStartScreen
 
-;; Inputs : HL = current adress inside bayer4x4 matrix , C = current intensity , 
-;;          B = current computed octet , IYH = Full cotet of pen 2
-;; Ouput : HL decreased , B = Current octet with correct subpixel , A destroyed , other unchanged
 .macro  addPen2toPixel  MASK,CPLMASK,?lbl
     dec     hl                          ;; [2] Move to previous bayer matrix value
     ld      a,(hl)                      ;; [2] get bayer matrix value
@@ -90,10 +87,10 @@
     and     #CPLMASK                    ;; [2] Clear current pixel
     ld      b,a                         ;; [1] Stores it
     ld      a,#MASK                     ;; [2] Current pixel mask
-    and__iyh                            ;; [2] Filter on pen2
-    or      b                           ;; [1] Add current octet
+    and__iyh                            ;; [2] Set pen2 on pixel
+    or      b                           ;; [1] Add current filtered octet
     ld      b,a                         ;; [1] Stores it
-lbl:                                    ;;  exit label
+lbl:                                    ;;  exit macro label
 .endm
 
 ;;  Start
@@ -115,40 +112,40 @@ b_computeMx:
     ld      (bayer_pen1),a              ;; [4] Store pen1
     ld      a,b                         ;; [1] A = pen2
     ld      (bayer_pen2),a              ;; [4] Store pen2
-    ld      hl,#bayer_fullColorBytes    ;; [3]
-    ld      d,#0                        ;; [2]
-    ld      e,b                         ;; [1]
-    add     hl,de                       ;; [3]
-    ld      a,(hl)                      ;; [2]
-    ld__iyh_a                           ;; [2] Full color of pen2
-    sbc     hl,de                       ;; [4]
-    ld      e,c                         ;; [1]
-    add     hl,de                       ;; [3]
-    ld      a,(hl)                      ;; [2]
-    ld__iyl_a                           ;; [2] Full color of pen1
-    ld      de,#bayer_lutM1_end         ;; [3] End of LUT (intensity = 15)
-    ld      a,e                         ;; 
-    and     #0xFC                       ;; Align to previous 4 boundary
-    ld      e,a                         ;; 
+    ld      hl,#bayer_fullColorBytes    ;; [3] HL = Start of full color array
+    ld      d,#0                        ;; [2] D = 0
+    ld      e,b                         ;; [1] DE = Pen 2
+    add     hl,de                       ;; [3] HL = Pen 2 full color adress (Carry is reset)
+    ld      a,(hl)                      ;; [2] A = Full color of pen2
+    ld__iyh_a                           ;; [2] IYH = Full color of pen2
+    sbc     hl,de                       ;; [4] Move back to start adress
+    ld      e,c                         ;; [1] DE = Pen 1 
+    add     hl,de                       ;; [3] HL = Pen 1 full color adress
+    ld      a,(hl)                      ;; [2] A = Full color of pen1
+    ld__iyl_a                           ;; [2] IYL = Full color of pen1
+    ld      de,#bayer_lutM1_end         ;; [3] DE = End of LUT (intensity = 15)
+    ld      a,e                         ;; [1] A = LSB end of LUT adress 
+    and     #0xFC                       ;; [2] Align to previous 4 boundary
+    ld      e,a                         ;; [1] DE = End of LUT but 4 aligned (last 2 bits = 0)
     ld      c,#15                       ;; [2] Let's compute all 16 intensities
 b_loopIntensity:
     ld      b,#4                        ;; [2] For 4 lines
 
-    ld      hl,#bayer_matrix4x4_end     ;; [3]
+    ld      hl,#bayer_matrix4x4_end     ;; [3] As we are doing it reverse, we start from last Bayer Matrix adress
 b_loopLine:
     push    bc                          ;; [4] Stores loops values
     ld__b_iyl                           ;; [2] B=Full color of pen1 = Starting color of octet, output of line
 
-    ;; addPen2toPixel compares matrix value with C modifies B and decrease hl
-    addPen2toPixel  0x11   0xEE         ;; [7/19]
-    addPen2toPixel  0x22   0xDD         ;; [7/19]
-    addPen2toPixel  0x44   0xBB         ;; [7/19]
-    addPen2toPixel  0x88   0x77         ;; [7/19]
+    ;; addPen2toPixel compares matrix value with C (intensity) modifies B with pen2 if needed and decrease hl
+    addPen2toPixel  0x11   0xEE         ;; [7/19] Check/set sub pixel 0
+    addPen2toPixel  0x22   0xDD         ;; [7/19] Check/set sub pixel 1
+    addPen2toPixel  0x44   0xBB         ;; [7/19] Check/set sub pixel 2
+    addPen2toPixel  0x88   0x77         ;; [7/19] Check/set sub pixel 3
 
-    ex      de,hl                       ;; [1]
-    dec     hl                          ;; [2]
-    ld      (hl),B                      ;; [2]
-    ex      de,hl                       ;; [1]
+    ex      de,hl                       ;; [1] DE = Bayer Matrix HL = Destination LUT 
+    dec     hl                          ;; [2] Decrease LUT
+    ld      (hl),B                      ;; [2] Set LUT value
+    ex      de,hl                       ;; [1] HL = Bayer matrix DE = Destination LUT
 
     pop     bc                          ;; [3] Retrieves loop values
     djnz    #b_loopLine                 ;; [3/4] Doing 4 lines
@@ -158,24 +155,24 @@ b_loopLine:
     dec     c                           ;; [1] Decrease intensity
     jr      #b_loopIntensity            ;; [3] loop on intensity
 b_endLoopIntensity:
-    pop     iy                          ;; [5]
-    pop     de                          ;; [3] Retrieve intensity
+    pop     iy                          ;; [5] Retrieve IY from Matrix algo
+    pop     de                          ;; [3] Retrieve intensity from Matrix algo
 b_checkIntensity:
-    ld      a,(bayer_intensity)         ;; [4] Current intensity
-    cp      e                           ;; [1] 
+    ld      a,(bayer_intensity)         ;; [4] Current stored intensity
+    cp      e                           ;; [1] Compare with input intensity
     ret     z                           ;; [2/4] Equal? No need to change ptr
     ld      hl,#bayer_lutM1             ;; [3] HL = start of LUT
-    ld      a,l
-    and     #0xFC
-    ld      l,a
+    ld      a,l                         ;; [1] A = LSB of LUT
+    and     #0xFC                       ;; [2] Clear bit 0 and 1 from LSB
+    ld      l,a                         ;; [1] HL = LUT aligned to 4
     ld      a,e                         ;; [1] a = intensity
-    ld      (bayer_intensity),a         ;; [4] Store current intensity
+    ld      (bayer_intensity),a         ;; [4] Store new intensity
     rlca                                ;; [1] a = a * 2
     rlca                                ;; [1] a = a * 2 = intensity * 4    
     ld      d,#0                        ;; [2] Reset d
     ld      e,a                         ;; [1] e = intensity * 4
-    add     hl,de                       ;; [3] HL = adress of intensity of line 0 (and easy line 1..3)
-    ld      (bayer_intensityPtr),hl     ;; [5] Stores the new ptr
+    add     hl,de                       ;; [3] HL = adress of intensity of line 0 (and easy access line 1..3)
+    ld      (bayer_intensityPtr),hl     ;; [5] Stores the ptr to use inside bayer draw APIs
     ret                                 ;; [3] Return
 
 .area   _DATA

@@ -17,22 +17,53 @@
 ;;-------------------------------------------------------------------------------
 .module cpct_bayeretry
 
-.globl _cpct_clipTriangle
-.globl _cpct_drawBayerPolygonM1
+.globl cpct_clipTriangle_asm
+.globl cpct_drawBayerPolygonM1_asm
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; Function: cpct_drawBayerClippedTriangleM1_asm
+;;
+;;    Clip and draw a input triangle using bayer dithering.
+;;    
+;;
+;; C Definition:
+;;    void <cpct_drawBayerClippedTriangleM1>(const i16 *PtArray);
+;;
+;; Input Parameters:
+;;    (2B HL)     PtArray - Adress of 3 i16 Points defining a triangle to draw
+;;
+;; Details:
+;;    Use an internal buffer of 7 Points to generate a clipped polygon from triangle input.
+;;    Then draws the generated polygon if it is valid.
+;;    Uses cpct_clipTriangle_asm and cpct_drawBayerPolygonM1_asm
+;; 
+;; Destroyed Register values:
+;;    AF, BC, DE, HL
+;;
+;; Required memory:
+;;
+;;
+;; Time Measures: (does not include 35 us call to cpct_getScreenPtr_asm)
+;; (start code)
+;;    Case / Coordinates                       | Pixels | microSecs (us) | CPU Cycles
+;;   ---------------------------------------------------------------------------------
+;;    Box x0=0 x1=319 y0=0 y1=199              | 101    | ~94375         | ~
+;;   ---------------------------------------------------------------------------------
+;; (end code)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 
 .area _CODE
-
-;; HL = signed triangle point list.
 _cpct_drawBayerClippedTriangleM1::
-    ld de,#bayer7PointBuffer
-    call _cpct_clipTriangle
-    cp #3
-    ret c
+cpct_drawBayerClippedTriangleM1_asm::
+    ld      de,#bayer7PointBuffer               ;; [3] DE = 7 x 4 Bytes points buffer
+    call    cpct_clipTriangle_asm               ;; [5] Call the clip triangle API with HL pointing to the triangle
+    cp      #3                                  ;; [2] Check that output is a valid polygon
+    ret     c                                   ;; [2/4] Return if not
 
-    ld e,a
-    ld d,#0
-    ld hl,#bayer7PointBuffer
-    call _cpct_drawBayerPolygonM1
-    ret
-
-bayer7PointBuffer:: .ds 28 ;; Buffer with capacity for seven points
+    ld      e,a                                 ;; [1] E = Nbpoints of polygon
+    ld      hl,#bayer7PointBuffer               ;; [3] HL = Generated polygon definition
+    call    cpct_drawBayerPolygonM1_asm         ;; [5] draw the Bayer polygon
+    ret                                         ;; [3] Return
+bayer7PointBuffer:: .ds 28                      ;; (28) Buffer with capacity for seven points

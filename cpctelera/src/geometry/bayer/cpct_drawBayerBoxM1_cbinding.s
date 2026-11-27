@@ -26,9 +26,8 @@
 ;;
 
 _cpct_drawBayerBoxM1::
-    ;; hl = x0 , de = x1 
-    pop     af                      ;; [3] Retrieve return adress
-    pop     bc                      ;; [3] Retrieve C = y0 and B = y1
-    push    af                      ;; [4] Put back the return adress on stack
+    pop     af                                  ;; [3] Retrieve return adress
+    pop     bc                                  ;; [3] Retrieve C = y0 and B = y1
+    push    af                                  ;; [4] Put back the return adress on stack
 
 .include /cpct_drawBayerBoxM1.asm/

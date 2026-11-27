@@ -27,10 +27,9 @@
 .include "macros/cpct_undocumentedOpcodes.h.s"
 
 _cpct_setBayerMatrixM1::
-    ;; HL = vmem , DE = intensity (only E is used)
 
-    pop     af                  ;; [3] Retrieve return adress
-    pop     bc                  ;; [3] Retrieve pen1 in C and pen2 in B
-    push    af                  ;; [4] Put back the return adress on stack
+    pop     af                                  ;; [3] Retrieve return adress
+    pop     bc                                  ;; [3] Retrieve pen1 in C and pen2 in B
+    push    af                                  ;; [4] Put back the return adress on stack
 
 .include /cpct_setBayerMatrixM1.asm/

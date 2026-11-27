@@ -31,39 +31,36 @@
 
 .area _DATA
 
-geomStartScreen::  .ds 2                            ;; (2) Base address of screen memory
-geomX0::           .ds 2                            ;; (2) An horizontal coordinate 
-geomY0::           .ds 2                            ;; (2) A vertical coordinate 
-geomX1::           .ds 2                            ;; (2) An horizontal coordinate
-geomY1::           .ds 2                            ;; (2) A vertical coordinate 
-geomCurrentX::     .ds 2                            ;; (2) Current horizontal coordinate
-geomCurrentY::     .ds 2                            ;; (2) Current vertical coordinate
-geomPreviousX::    .ds 2                            ;; (2) Previous horizontal coordinate
-geomPreviousY::    .ds 2                            ;; (2) Previous vertical coordinate
-geomDeltaX::       .ds 2                            ;; (2) Horizontal coordinate difference
-geomDeltaY::       .ds 2                            ;; (2) Vertical coordinate difference
-
-geomBottomY::      .ds 1                            ;; (1) Lower vertical coordinate bound
-geomTopY::         .ds 1                            ;; (1) Upper vertical coordinate bound
-
-geomInputPtr::     .ds 2                            ;; (2) Pointer to input data
-geomNbInput::      .ds 1                            ;; (1) Number of input elements
-geomInputColor::   .ds 1                            ;; (1) Input color value
-geomOutputPtr::    .ds 2                            ;; (2) A current Adress
-geomCurrentPtr::   .ds 2                            ;; (2) A current Adress
-geomNextPtr::      .ds 2                            ;; (2) A next Adress
-geomLeftScrOctet:: .ds 1                            ;; (1) A left Screen octet (0..79)
-geomLeftSubPixel:: .ds 1                            ;; (1) A left Sub Pixel (0..3)
-geomCurScrOctet::  .ds 1                            ;; (1) A current Screen octet (0..79)
-geomCurSubPixel::  .ds 1                            ;; (1) A current Sub Pixel (0..3)
-geomRightScrOctet::.ds 1                            ;; (1) A right Screen octet (0..79)
-geomRightSubPixel::.ds 1                            ;; (1) A right Sub Pixel (0..3)
-
-geomStartX::       .ds 2                            ;; (2) Starting horizontal coordinate
-geomEndX::         .ds 2                            ;; (2) Ending horizontal coordinate
-geomStartY::       .ds 1                            ;; (1) Starting vertical coordinate
-geomEndY::         .ds 1                            ;; (1) Ending vertical coordinate
-geomIndex::        .ds 1                            ;; (1) Index of the current element
-geomStep::         .ds 1                            ;; (1) Increment or direction used to advance
-geomError::        .ds 2                            ;; (2) Accumulated intermediate error value
-geomThreshold::    .ds 2                            ;; (2) Comparison threshold
+geomStartScreen::  .ds 2                        ;; (2) Base address of screen memory
+geomX0::           .ds 2                        ;; (2) An horizontal coordinate 
+geomY0::           .ds 2                        ;; (2) A vertical coordinate 
+geomX1::           .ds 2                        ;; (2) An horizontal coordinate
+geomY1::           .ds 2                        ;; (2) A vertical coordinate 
+geomCurrentX::     .ds 2                        ;; (2) Current horizontal coordinate
+geomCurrentY::     .ds 2                        ;; (2) Current vertical coordinate
+geomPreviousX::    .ds 2                        ;; (2) Previous horizontal coordinate
+geomPreviousY::    .ds 2                        ;; (2) Previous vertical coordinate
+geomDeltaX::       .ds 2                        ;; (2) Horizontal coordinate difference
+geomDeltaY::       .ds 2                        ;; (2) Vertical coordinate difference
+geomBottomY::      .ds 1                        ;; (1) Lower vertical coordinate bound
+geomTopY::         .ds 1                        ;; (1) Upper vertical coordinate bound
+geomInputPtr::     .ds 2                        ;; (2) Pointer to input data
+geomNbInput::      .ds 1                        ;; (1) Number of input elements
+geomInputColor::   .ds 1                        ;; (1) Input color value
+geomOutputPtr::    .ds 2                        ;; (2) A current Adress
+geomCurrentPtr::   .ds 2                        ;; (2) A current Adress
+geomNextPtr::      .ds 2                        ;; (2) A next Adress
+geomLeftScrOctet:: .ds 1                        ;; (1) A left Screen octet (0..79)
+geomLeftSubPixel:: .ds 1                        ;; (1) A left Sub Pixel (0..3)
+geomCurScrOctet::  .ds 1                        ;; (1) A current Screen octet (0..79)
+geomCurSubPixel::  .ds 1                        ;; (1) A current Sub Pixel (0..3)
+geomRightScrOctet::.ds 1                        ;; (1) A right Screen octet (0..79)
+geomRightSubPixel::.ds 1                        ;; (1) A right Sub Pixel (0..3)
+geomStartX::       .ds 2                        ;; (2) Starting horizontal coordinate
+geomEndX::         .ds 2                        ;; (2) Ending horizontal coordinate
+geomStartY::       .ds 1                        ;; (1) Starting vertical coordinate
+geomEndY::         .ds 1                        ;; (1) Ending vertical coordinate
+geomIndex::        .ds 1                        ;; (1) Index of the current element
+geomStep::         .ds 1                        ;; (1) Increment or direction used to advance
+geomError::        .ds 2                        ;; (2) Accumulated intermediate error value
+geomThreshold::    .ds 2                        ;; (2) Comparison threshold

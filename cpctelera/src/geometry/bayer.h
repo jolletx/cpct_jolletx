@@ -34,6 +34,6 @@ extern void cpct_setBayerMatrixM1(u8* vmem, u16 intensity, u8 pen1, u8 pen2 ) __
 // Draw routines
 extern void cpct_drawBayerBoxM1 (u16 x0, u16 x1, u8 y0,  u8 y1) __z88dk_callee;
 extern void cpct_drawBayerClippedTriangleM1 (const i16 *PtArray);
-extern void cpct_drawBayerPolygonM1 (u16 *PtArray, u16 numPoints) __sdcccall(1);
+extern void cpct_drawBayerPolygonM1 (const u16 *PtArray, u16 numPoints) __sdcccall(1);
 
 #endif

@@ -64,8 +64,6 @@
 ;; (end code)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-    ;; HL = X0, DE = X1 C = y0 B = Y1 
-    ;; Check which is min / max
     push    ix                                  ;; [5] Preserve IX/IY for Fast line inputs
     push    iy                                  ;; [5]
     push    hl                                  ;; [4] Save x0
